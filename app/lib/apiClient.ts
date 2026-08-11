@@ -1,6 +1,6 @@
 import { SignPredictResponse, SpeechParseResponse } from './types';
 
-const BASE_URL = process.env.NEXT_PUBLIC_SAMBUT_AI_URL || 'http://localhost:8000';
+const BASE_URL = process.env.NEXT_PUBLIC_SAMBUT_AI_URL || 'http://localhost:7860';
 
 export async function checkBackendHealth(): Promise<{ status: string; model_loaded: boolean; supported_intents: string[] }> {
   try {
