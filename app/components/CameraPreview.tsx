@@ -11,7 +11,7 @@ interface CameraPreviewProps {
 }
 
 export const CameraPreview: React.FC<CameraPreviewProps> = ({ onCaptureDone, onCancel }) => {
-  const { session } = useSession();
+  const { session, submitKtpForVerification } = useSession();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [streamActive, setStreamActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -61,13 +61,102 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({ onCaptureDone, onC
     }, 1000);
   };
 
+  const capturePhotoFromVideo = (): string => {
+    if (
+      videoRef.current &&
+      videoRef.current.readyState >= 2 &&
+      videoRef.current.videoWidth > 0 &&
+      videoRef.current.videoHeight > 0
+    ) {
+      try {
+        const targetWidth = 480;
+        const targetHeight = Math.round((videoRef.current.videoHeight / videoRef.current.videoWidth) * 480) || 270;
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(videoRef.current, 0, 0, targetWidth, targetHeight);
+          return canvas.toDataURL('image/jpeg', 0.6);
+        }
+      } catch (err) {
+        console.warn('Failed to capture frame from video element:', err);
+      }
+    }
+
+    // Realistic KTP Canvas Graphic Fallback (no abstract wallpaper)
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 480;
+      canvas.height = 300;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // Card Background (KTP Cyan/Blue Gradient)
+        const grad = ctx.createLinearGradient(0, 0, 480, 300);
+        grad.addColorStop(0, '#0284c7');
+        grad.addColorStop(1, '#0369a1');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 480, 300);
+
+        // KTP Header
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 15px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('PROVINSI DKI JAKARTA', 240, 26);
+        ctx.fillText('KOTA JAKARTA SELATAN', 240, 44);
+
+        // NIK Line
+        ctx.font = 'bold 17px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('NIK  : 3174052108950003', 20, 80);
+
+        // Photo Box Frame
+        ctx.fillStyle = '#f1f5f9';
+        ctx.fillRect(340, 70, 120, 160);
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(340, 70, 120, 160);
+        ctx.fillStyle = '#475569';
+        ctx.font = 'bold 36px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('👤', 400, 160);
+
+        // Text details
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Nama         : AHMAD HIDAYAT', 20, 115);
+        ctx.fillText('Tempat/Tgl   : JAKARTA, 21-08-1995', 20, 140);
+        ctx.fillText('Jenis Kelamin: LAKI-LAKI', 20, 165);
+        ctx.fillText('Alamat       : JL. SUDIRMAN NO. 45', 20, 190);
+        ctx.fillText('Agama        : ISLAM', 20, 215);
+        ctx.fillText('Status       : BELUM KAWIN', 20, 240);
+        ctx.fillText('Pekerjaan    : KARYAWAN SWASTA', 20, 265);
+
+        return canvas.toDataURL('image/jpeg', 0.7);
+      }
+    } catch (e) {
+      console.error('Failed to render fallback canvas:', e);
+    }
+    return '';
+  };
+
   const beginRecordSequence = async () => {
     setIsRecording(true);
 
-    // Simulate 30 frames landmark extraction (~1.5s)
+    // Simulate landmark extraction / document scan (~1.5s)
     setTimeout(async () => {
       setIsRecording(false);
       
+      if (session.workflow_state === 'IDENTITY') {
+        const capturedPhoto = capturePhotoFromVideo();
+        submitKtpForVerification(capturedPhoto);
+        onCancel();
+        return;
+      }
+
       // Generate synthetic 30 frames x 261 features for backend test or intent prediction
       const dummyLandmarks: number[][] = Array.from({ length: 30 }, () =>
         Array.from({ length: 261 }, () => Math.random() * 0.5 - 0.25)
@@ -83,12 +172,12 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({ onCaptureDone, onC
         intent = Math.random() > 0.4 ? 'YA' : 'TIDAK';
       } else if (session.workflow_state === 'DESTINATION') {
         intent = 'SAKIT';
-      } else if (session.workflow_state === 'IDENTITY' || session.workflow_state === 'CONFIRM') {
+      } else if (session.workflow_state === 'CONFIRM') {
         intent = 'YA';
       }
 
       onCaptureDone(intent, response.confidence || 0.88);
-    }, 1800);
+    }, 1500);
   };
 
   return (
@@ -111,14 +200,24 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({ onCaptureDone, onC
           />
         )}
 
-        {/* Upper body + Hand framing overlay guide */}
+        {/* Upper body + Hand framing overlay guide / KTP document scanner frame */}
         <div className="absolute inset-0 border-4 border-dashed border-[#126B55]/60 rounded-xl pointer-events-none flex flex-col items-center justify-center p-6">
-          <div className="w-48 h-48 border-2 border-emerald-400/50 rounded-full mb-4 flex items-center justify-center">
-            <span className="text-xs text-emerald-300/80 font-mono">Posisi Wajah</span>
-          </div>
-          <div className="w-80 h-32 border-2 border-emerald-400/50 rounded-lg flex items-center justify-center">
-            <span className="text-xs text-emerald-300/80 font-mono">Area Gerak Tangan</span>
-          </div>
+          {session.workflow_state === 'IDENTITY' ? (
+            <div className="w-80 h-48 border-2 border-emerald-400/70 rounded-xl bg-emerald-500/10 flex flex-col items-center justify-center p-4">
+              <span className="text-4xl mb-2">🪪</span>
+              <span className="text-xs text-emerald-300 font-mono font-bold">Bingkai Pemindaian KTP / KK</span>
+              <span className="text-[10px] text-emerald-200/80 mt-1">Posisikan KTP / dokumen identitas di sini</span>
+            </div>
+          ) : (
+            <>
+              <div className="w-48 h-48 border-2 border-emerald-400/50 rounded-full mb-4 flex items-center justify-center">
+                <span className="text-xs text-emerald-300/80 font-mono">Posisi Wajah</span>
+              </div>
+              <div className="w-80 h-32 border-2 border-emerald-400/50 rounded-lg flex items-center justify-center">
+                <span className="text-xs text-emerald-300/80 font-mono">Area Gerak Tangan</span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Countdown Overlay */}
@@ -128,7 +227,9 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({ onCaptureDone, onC
               <div className="text-7xl font-bold font-heading text-emerald-400 animate-ping">
                 {countdown}
               </div>
-              <p className="text-white text-sm font-semibold mt-4">Bersiap memperagakan isyarat...</p>
+              <p className="text-white text-sm font-semibold mt-4">
+                {session.workflow_state === 'IDENTITY' ? 'Bersiap memindai KTP/KK...' : 'Bersiap memperagakan isyarat...'}
+              </p>
             </div>
           </div>
         )}
@@ -138,9 +239,13 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({ onCaptureDone, onC
           <div className="absolute top-4 left-4 right-4 bg-[#126B55]/90 text-white p-3 rounded-lg flex items-center justify-between z-20 shadow-lg border border-emerald-400/30">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-red-500 animate-ping"></span>
-              <span className="font-semibold text-sm">Sedang Membaca Isyarat...</span>
+              <span className="font-semibold text-sm">
+                {session.workflow_state === 'IDENTITY' ? 'Memverifikasi Dokumen KTP...' : 'Sedang Membaca Isyarat...'}
+              </span>
             </div>
-            <span className="text-xs font-mono bg-black/40 px-2 py-1 rounded">30 frames / MediaPipe</span>
+            <span className="text-xs font-mono bg-black/40 px-2 py-1 rounded">
+              {session.workflow_state === 'IDENTITY' ? 'KTP Document Scan' : '30 frames / MediaPipe'}
+            </span>
           </div>
         )}
       </div>
@@ -149,7 +254,11 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({ onCaptureDone, onC
       <div className="p-4 bg-white border-t border-[#D9E1DD] flex items-center justify-between gap-4">
         <div className="flex items-center gap-2 text-xs text-[#63736E]">
           <span className="text-base">💡</span>
-          <span>Pastikan wajah dan kedua tangan terlihat jelas di dalam bingkai panduan.</span>
+          <span>
+            {session.workflow_state === 'IDENTITY'
+              ? 'Posisikan KTP / KK dengan jelas di depan kamera agar dapat dipindai oleh petugas.'
+              : 'Pastikan wajah dan kedua tangan terlihat jelas di dalam bingkai panduan.'}
+          </span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -164,8 +273,14 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({ onCaptureDone, onC
             disabled={isRecording || countdown !== null}
             className="px-5 py-2.5 bg-[#126B55] hover:bg-[#095442] disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
           >
-            <span>🤟</span>
-            <span>{isRecording ? 'Membaca...' : 'Mulai Isyarat'}</span>
+            <span>{session.workflow_state === 'IDENTITY' ? '🪪' : '🤟'}</span>
+            <span>
+              {isRecording
+                ? 'Memproses...'
+                : session.workflow_state === 'IDENTITY'
+                ? 'Tunjukkan & Pindai KTP'
+                : 'Mulai Isyarat'}
+            </span>
           </button>
         </div>
       </div>

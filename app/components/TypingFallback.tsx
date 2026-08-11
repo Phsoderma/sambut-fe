@@ -5,15 +5,24 @@ import React, { useState } from 'react';
 interface TypingFallbackProps {
   onSubmitText: (text: string) => void;
   onCancel: () => void;
+  onLiveTextChange?: (text: string) => void;
 }
 
-export const TypingFallback: React.FC<TypingFallbackProps> = ({ onSubmitText, onCancel }) => {
+export const TypingFallback: React.FC<TypingFallbackProps> = ({ onSubmitText, onCancel, onLiveTextChange }) => {
   const [text, setText] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!text.trim()) return;
     onSubmitText(text.trim());
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setText(val);
+    if (onLiveTextChange) {
+      onLiveTextChange(val);
+    }
   };
 
   return (
@@ -30,7 +39,7 @@ export const TypingFallback: React.FC<TypingFallbackProps> = ({ onSubmitText, on
         <form onSubmit={handleSubmit} className="space-y-4">
           <textarea
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={handleChange}
             placeholder="Tulis jawaban Anda di sini (misal: Pasien baru, berobat umum, atau ada keluhan kepala pusing)..."
             rows={5}
             className="w-full p-4 border border-[#D9E1DD] rounded-xl text-sm font-sans text-[#13231F] focus:ring-2 focus:ring-[#126B55] focus:border-[#126B55] outline-none transition-all resize-none bg-[#F8FAF9]"
