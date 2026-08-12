@@ -1,275 +1,160 @@
 'use client';
 
-import React, { useState } from 'react';
-import { SessionProvider, useSession } from '../lib/SessionContext';
-import { Header } from '../components/Header';
-import { BisindoPlayer } from '../components/BisindoPlayer';
+import { FormEvent, useState } from 'react';
 import { CameraPreview } from '../components/CameraPreview';
-import { MeaningConfirmation } from '../components/MeaningConfirmation';
-import { TypingFallback } from '../components/TypingFallback';
-import { UserIntent } from '../lib/types';
-import { WORKFLOW_STATES, INTENT_TRANSLATIONS } from '../lib/workflow';
+import { Header } from '../components/Header';
+import { useSession } from '../lib/SessionContext';
+import { userStateId } from '../lib/stateMap';
 
-function UserTerminalContent() {
+type InputMode = 'QUESTION' | 'CAMERA' | 'TEXT';
+
+export default function UserPage() {
   const {
-    session,
-    setUserIntent,
-    confirmAnswerAndAdvance,
-    requestHumanHelp,
-    resumeFromHelp,
+    credentials,
+    snapshot,
+    connection,
+    error,
+    busy,
+    joinUserSession,
+    submitEvent,
+    reconnectNow,
+    leaveSession,
   } = useSession();
+  const [sessionId, setSessionId] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [text, setText] = useState('');
+  const [inputMode, setInputMode] = useState<InputMode>('QUESTION');
 
-  const [inputMode, setInputMode] = useState<'INITIAL' | 'CAMERA' | 'CONFIRMATION' | 'TYPING'>('INITIAL');
-  const [detectedIntent, setDetectedIntent] = useState<UserIntent>('YA');
-  const [detectedConfidence, setDetectedConfidence] = useState<number>(0.88);
-
-  const stateConfig = WORKFLOW_STATES[session.workflow_state] || WORKFLOW_STATES.START;
-
-  const handleCaptureDone = (intent: UserIntent, confidence: number) => {
-    setDetectedIntent(intent);
-    setDetectedConfidence(confidence);
-    setUserIntent(intent, confidence);
-    setInputMode('CONFIRMATION');
+  const join = (event: FormEvent) => {
+    event.preventDefault();
+    joinUserSession(sessionId, joinCode);
   };
 
-  const handleConfirmAnswer = () => {
-    const textToConfirm = session.user_confirmed_text || INTENT_TRANSLATIONS[detectedIntent]?.labelText || detectedIntent;
-    confirmAnswerAndAdvance(textToConfirm);
-    setInputMode('INITIAL');
+  if (!snapshot || !credentials) {
+    return (
+      <div className="app-shell">
+        <Header role="user" />
+        <main className="focus-page">
+          <section className="focus-content compact">
+            <p className="eyebrow">Terminal pengguna</p>
+            <h1>Hubungkan ke petugas</h1>
+            <p className="lead">Masukkan ID sesi dan kode sambung yang ditampilkan pada terminal petugas.</p>
+            <form className="stack-form" onSubmit={join}>
+              <label htmlFor="session-id">ID sesi</label>
+              <input id="session-id" value={sessionId} onChange={(event) => setSessionId(event.target.value)} autoComplete="off" required />
+              <label htmlFor="join-code">Kode sambung</label>
+              <input id="join-code" value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} maxLength={12} autoComplete="off" required />
+              {error && <p className="error-box" role="alert">{error}</p>}
+              <button className="button primary large" disabled={busy}>Hubungkan</button>
+            </form>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
+  if (credentials.role !== 'USER') {
+    return <RoleMismatch leaveSession={leaveSession} />;
+  }
+
+  const offline = connection === 'DISCONNECTED';
+  const stateId = userStateId(snapshot.workflow_state, snapshot.recovery_status, !offline);
+  const isPurpose = snapshot.workflow_state.startsWith('PURPOSE_');
+
+  const sendText = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!text.trim()) return;
+    await submitEvent('USER_TEXT_SUBMITTED', { text: text.trim() });
+    setText('');
+    setInputMode('QUESTION');
   };
 
-  const handleTypingSubmit = (text: string) => {
-    confirmAnswerAndAdvance(text);
-    setInputMode('INITIAL');
+  const requestHelp = async () => {
+    await submitEvent('HUMAN_HELP_REQUESTED');
+    setInputMode('QUESTION');
   };
-
-  const isPhysicalDocumentState = session.workflow_state === 'IDENTITY' || session.workflow_state === 'INSURANCE';
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8FAF9]">
+    <div className="app-shell">
       <Header role="user" />
+      <main className="user-page" aria-live="polite">
+        <div className="state-caption"><span>{stateId}</span><span>{connection === 'CONNECTED' ? 'Terhubung dengan petugas' : 'Status koneksi berubah'}</span></div>
+        {offline && (
+          <section className="focus-content compact">
+            <h1>Koneksi terputus</h1>
+            <p className="lead">Alur tidak berubah. Hubungkan kembali untuk mengambil status terakhir dari petugas.</p>
+            <button className="button primary" onClick={reconnectNow}>Coba lagi</button>
+          </section>
+        )}
+        {!offline && error && <p className="error-box" role="alert">{error}</p>}
 
-      {/* Main Tablet Canvas - 1440x900 / 10-11" Landscape Contract */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 flex flex-col justify-center">
-        {session.need_human_help ? (
-          /* Human Help Escalation Screen with Resume Button */
-          <div className="bg-white rounded-2xl border border-amber-200 p-10 text-center max-w-2xl mx-auto shadow-md space-y-6">
-            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center text-4xl mx-auto">
-              💁‍♂️
-            </div>
-            <div>
-              <h2 className="font-heading font-bold text-3xl text-[#13231F] mb-3">
-                Petugas Akan Membantu Anda
-              </h2>
-              <p className="text-base text-[#63736E] leading-relaxed">
-                Pemberitahuan telah dikirim ke terminal loket. Petugas akan mendatangi tablet Anda untuk membantu pendaftaran.
-              </p>
-            </div>
+        {!offline && snapshot.workflow_state === 'SESSION_START' && (
+          <Focus title="Anda sudah terhubung dengan petugas." description="Silakan tunggu petugas memulai pertanyaan layanan." />
+        )}
 
-            <div className="p-4 bg-[#F8FAF9] rounded-xl border border-[#D9E1DD] text-xs font-semibold text-[#126B55]">
-              Petugas loket telah menerima panggilan di layar loket.
-            </div>
+        {!offline && isPurpose && snapshot.recovery_status === 'HUMAN_HELP' && (
+          <Focus title="Petugas akan membantu Anda secara langsung." description="Alur tetap pada pertanyaan yang sama sampai bantuan selesai.">
+            <button className="button secondary" onClick={() => submitEvent('RECOVERY_RESUMED')}>Kembali ke pertanyaan</button>
+          </Focus>
+        )}
 
-            <button
-              onClick={resumeFromHelp}
-              className="w-full py-4 bg-[#126B55] hover:bg-[#095442] text-white font-heading font-bold text-base rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              <span>✓</span>
-              <span>Bantuan Petugas Selesai — Kembali ke Pertanyaan</span>
-            </button>
-          </div>
-        ) : session.workflow_state === 'COMPLETED' ? (
-          /* Completion Screen (Manual Reset by Staff ONLY) */
-          <div className="bg-white rounded-2xl border border-[#D9E1DD] p-12 text-center max-w-2xl mx-auto shadow-md space-y-6">
-            <div className="w-20 h-20 bg-[#16734E]/10 text-[#16734E] rounded-full flex items-center justify-center text-4xl mx-auto">
-              🎉
-            </div>
-            <div>
-              <h2 className="font-heading font-bold text-3xl text-[#13231F] mb-2">
-                Pendaftaran Selesai
-              </h2>
-              <p className="text-base text-[#63736E]">
-                Terima kasih. Silakan mengambil nomor antrean dan menunggu panggilan di <strong>Ruang Tunggu Poli Umum</strong>.
-              </p>
-            </div>
+        {!offline && isPurpose && snapshot.recovery_status !== 'HUMAN_HELP' && inputMode === 'CAMERA' && (
+          <CameraPreview onCancel={() => setInputMode('QUESTION')} onText={() => setInputMode('TEXT')} onHelp={requestHelp} />
+        )}
 
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-center gap-3">
-              <span className="w-3 h-3 rounded-full bg-[#16734E]"></span>
-              <span className="text-sm font-semibold text-[#126B55]">
-                Pendaftaran Berhasil Dicatat • Petugas Loket Akan Meriset Sesi Pasien
-              </span>
-            </div>
-          </div>
-        ) : session.workflow_state === 'START' ? (
-          /* Step Persiapan Sesi: Pasien Hanya Menunggu Petugas Memulai Sesi */
-          <div className="bg-white rounded-2xl border border-[#D9E1DD] p-12 text-center max-w-xl mx-auto w-full shadow-xs">
-            <div className="w-20 h-20 bg-[#126B55]/10 text-[#126B55] rounded-2xl flex items-center justify-center text-4xl mx-auto mb-6">
-              🤟
-            </div>
-            <h2 className="font-heading font-bold text-3xl text-[#13231F] mb-3">
-              SAMBUT Siap Digunakan
-            </h2>
-            <p className="text-base text-[#63736E] mb-8 leading-relaxed">
-              Silakan tunggu petugas di loket untuk memulai sesi pertanyaan pendaftaran Anda.
-            </p>
+        {!offline && isPurpose && snapshot.recovery_status !== 'HUMAN_HELP' && inputMode === 'TEXT' && (
+          <section className="focus-content compact">
+            <p className="eyebrow">Jawaban teks</p>
+            <h1>Ketik jawaban Anda.</h1>
+            <form className="stack-form" onSubmit={sendText}>
+              <label htmlFor="answer-text">Jawaban untuk petugas</label>
+              <textarea id="answer-text" value={text} maxLength={500} onChange={(event) => setText(event.target.value)} autoFocus />
+              <div className="button-row"><button className="button primary" disabled={busy || !text.trim()}>Kirim</button><button className="button secondary" type="button" onClick={() => setInputMode('QUESTION')}>Kembali</button></div>
+            </form>
+          </section>
+        )}
 
-            <div className="p-5 bg-[#F8FAF9] rounded-xl border border-[#D9E1DD] flex items-center justify-center gap-3">
-              <span className="w-3 h-3 rounded-full bg-[#16734E] animate-ping"></span>
-              <span className="text-sm font-semibold text-[#126B55]">
-                Perangkat Terhubung • Menunggu Petugas Loket Memulai...
-              </span>
+        {!offline && isPurpose && snapshot.recovery_status !== 'HUMAN_HELP' && inputMode === 'QUESTION' && (
+          <section className="split-layout">
+            <div className="question-pane">
+              <p className="eyebrow">Pertanyaan petugas</p>
+              <h1>{snapshot.active_question}</h1>
+              <p className="guidance">Pilih cara menjawab yang paling nyaman. Jawaban isyarat dibatasi pada Ya, Tidak, atau Minta bantuan untuk pertanyaan ini.</p>
             </div>
-          </div>
-        ) : session.workflow_state === 'WAITING_STAFF_QUESTION' ? (
-          /* Waiting Screen while staff decides whether to ask a follow-up question via voice STT */
-          <div className="bg-white rounded-2xl border border-[#D9E1DD] p-10 shadow-xs text-center max-w-xl mx-auto w-full space-y-6">
-            <div className="w-16 h-16 bg-[#126B55]/10 text-[#126B55] rounded-2xl flex items-center justify-center text-3xl mx-auto">
-              ⏳
+            <div className="response-pane">
+              {snapshot.recovery_status === 'UNKNOWN' && <p className="error-box">Isyarat belum dapat dipahami. Alur belum berubah.</p>}
+              {snapshot.recovery_status === 'TEXT_FALLBACK' && snapshot.exact_text && <p className="success-box">Jawaban teks telah dikirim. Petugas akan mengklarifikasi dan melanjutkan alur.</p>}
+              <button className="button primary large" onClick={() => setInputMode('CAMERA')}>Jawab dengan BISINDO</button>
+              <button className="button secondary large" onClick={() => setInputMode('TEXT')}>Ketik jawaban</button>
+              <button className="button quiet large" onClick={requestHelp}>Minta bantuan petugas</button>
             </div>
-            <div>
-              <h3 className="font-heading font-bold text-2xl text-[#13231F] mb-2">
-                Menunggu Pertanyaan Petugas
-              </h3>
-              <p className="text-sm text-[#63736E]">
-                Silakan tunggu sejenak, petugas loket sedang menentukan apakah ada pertanyaan tambahan untuk Anda.
-              </p>
-            </div>
-            <div className="p-4 bg-[#F8FAF9] rounded-xl border border-[#D9E1DD] flex items-center justify-center gap-3">
-              <span className="w-3 h-3 rounded-full bg-[#126B55] animate-ping"></span>
-              <span className="text-xs font-semibold text-[#126B55]">
-                Terhubung ke Layar Loket Petugas...
-              </span>
-            </div>
-          </div>
-        ) : (
-          /* Split Dual Panel: Video Question & Interactive Response */
-          <div className="grid lg:grid-cols-12 gap-6 h-full items-stretch">
-            {/* Left Column: Verified BISINDO Player + Question Text */}
-            <div className="lg:col-span-6 flex flex-col">
-              <BisindoPlayer
-                questionText={session.current_question?.text || stateConfig.questionText}
-                signDescription={stateConfig.signDescription}
-                videoUrl={stateConfig.bisindoVideoUrl}
-              />
-            </div>
+          </section>
+        )}
 
-            {/* Right Column: Dynamic Input Channel */}
-            <div className="lg:col-span-6 flex flex-col">
-              {isPhysicalDocumentState ? (
-                /* Physical Document Waiting Screen (KTP / BPJS) */
-                <div className="bg-white rounded-xl border border-[#D9E1DD] p-8 shadow-xs flex flex-col justify-between h-full text-center">
-                  <div>
-                    <div className="w-16 h-16 bg-[#126B55]/10 text-[#126B55] rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4">
-                      {session.workflow_state === 'IDENTITY' ? '🪪' : '💳'}
-                    </div>
-                    <span className="text-xs font-semibold uppercase tracking-wider text-[#126B55] mb-2 block">
-                      {session.workflow_state === 'IDENTITY' ? 'Pemeriksaan KTP / KK' : 'Pemeriksaan Kartu BPJS'}
-                    </span>
-                    <h3 className="font-heading font-bold text-2xl text-[#13231F] mb-3">
-                      Tunjukkan Dokumen Fisik Ke Petugas
-                    </h3>
-                    <p className="text-sm text-[#63736E] leading-relaxed mb-6">
-                      {session.workflow_state === 'IDENTITY'
-                        ? 'Silakan serahkan KTP atau KK Anda secara langsung kepada petugas loket.'
-                        : 'Jika menggunakan JKN / BPJS Kesehatan, silakan serahkan kartu kepada petugas loket.'}
-                    </p>
-                  </div>
-
-                  <div className="p-6 bg-[#F8FAF9] rounded-xl border border-[#D9E1DD] text-center space-y-3">
-                    <div className="flex items-center justify-center gap-2 text-[#126B55] font-semibold text-sm">
-                      <span className="w-3 h-3 rounded-full bg-[#126B55] animate-ping"></span>
-                      <span>Menunggu Konfirmasi Petugas Loket...</span>
-                    </div>
-                    <p className="text-xs text-[#63736E]">
-                      Petugas akan memeriksa dan mengonfirmasi dokumen di terminal loket untuk melanjutkan alur pendaftaran.
-                    </p>
-                  </div>
-                </div>
-              ) : inputMode === 'CAMERA' ? (
-                <CameraPreview
-                  onCaptureDone={handleCaptureDone}
-                  onCancel={() => setInputMode('INITIAL')}
-                />
-              ) : inputMode === 'CONFIRMATION' ? (
-                <MeaningConfirmation
-                  intent={detectedIntent}
-                  confidence={detectedConfidence}
-                  confidenceBand={session.confidence_band}
-                  onConfirm={handleConfirmAnswer}
-                  onRetry={() => setInputMode('CAMERA')}
-                  onTypeFallback={() => setInputMode('TYPING')}
-                />
-              ) : inputMode === 'TYPING' ? (
-                <TypingFallback
-                  onSubmitText={handleTypingSubmit}
-                  onCancel={() => setInputMode('INITIAL')}
-                />
-              ) : (
-                /* INITIAL Action Selection Mode */
-                <div className="bg-white rounded-xl border border-[#D9E1DD] p-8 shadow-xs flex flex-col justify-between h-full">
-                  <div>
-                    <span className="text-xs font-semibold uppercase tracking-wider text-[#126B55] mb-2 block">
-                      Langkah {WORKFLOW_STATES[session.workflow_state]?.title || 'Pertanyaan'}
-                    </span>
-                    <h3 className="font-heading font-bold text-2xl text-[#13231F] mb-3">
-                      Pilih Kanal Jawaban Anda
-                    </h3>
-                    <p className="text-xs text-[#63736E] leading-relaxed mb-6">
-                      Sesuai prinsip aksesibilitas, Anda dapat memperagakan bahasa isyarat BISINDO langsung di depan kamera atau menggunakan opsi pengetikan teks.
-                    </p>
-                  </div>
-
-                  <div className="space-y-4">
-                    {/* Primary BISINDO Sign Button */}
-                    <button
-                      onClick={() => setInputMode('CAMERA')}
-                      className="w-full p-5 bg-[#126B55] hover:bg-[#095442] text-white font-heading font-semibold text-lg rounded-xl shadow-sm transition-all active:scale-[0.98] cursor-pointer flex items-center justify-between group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-3xl group-hover:scale-110 transition-transform">🤟</span>
-                        <div className="text-left">
-                          <span className="block font-bold">Jawab dengan BISINDO</span>
-                          <span className="text-xs font-normal text-emerald-100">Kamera akan mengenali isyarat Anda secara otomatis</span>
-                        </div>
-                      </div>
-                      <span className="text-xl">→</span>
-                    </button>
-
-                    {/* Secondary Typing Fallback Button */}
-                    <button
-                      onClick={() => setInputMode('TYPING')}
-                      className="w-full p-4 bg-[#F8FAF9] hover:bg-gray-100 text-[#13231F] font-heading font-semibold text-sm rounded-xl border border-[#D9E1DD] transition-all cursor-pointer flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">⌨️</span>
-                        <span>Ketik Jawaban Teks</span>
-                      </div>
-                      <span className="text-xs text-[#63736E]">Gunakan Keyboard</span>
-                    </button>
-
-                    {/* Escalation Human Help Button */}
-                    <button
-                      onClick={requestHumanHelp}
-                      className="w-full py-3 text-[#B42318] hover:bg-red-50 text-xs font-semibold rounded-lg border border-red-200 transition-colors cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <span>💬</span>
-                      <span>Minta Bantuan Petugas Loket</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+        {!offline && snapshot.workflow_state === 'IDENTITY_DOCUMENT' && (
+          <Focus title="Silakan tunjukkan KTP atau KK langsung kepada petugas." description="SAMBUT tidak memindai atau menyimpan dokumen Anda." />
+        )}
+        {!offline && snapshot.workflow_state === 'INSURANCE_DOCUMENT' && (
+          <Focus title="Jika menggunakan JKN/BPJS, silakan tunjukkan identitas kepesertaan langsung kepada petugas." description="Tidak ada kamera atau pemeriksaan otomatis pada tahap ini." />
+        )}
+        {!offline && snapshot.workflow_state === 'NEXT_STEP' && (
+          <Focus title="Ikuti arahan berikut dari petugas." description={snapshot.next_step ?? 'Menunggu petugas mengirim arahan.'}>
+            {snapshot.next_step && !snapshot.next_step_acknowledged && <button className="button primary" onClick={() => submitEvent('NEXT_STEP_ACKNOWLEDGED')} disabled={busy}>Saya mengerti</button>}
+            {snapshot.next_step_acknowledged && <p className="success-text">Arahan sudah diterima. Petugas akan menutup sesi.</p>}
+          </Focus>
+        )}
+        {!offline && snapshot.workflow_state === 'COMPLETE' && (
+          <Focus title="Pendaftaran selesai." description="Silakan mengikuti arahan petugas." />
         )}
       </main>
     </div>
   );
 }
 
-export default function UserTerminalPage() {
-  return (
-    <SessionProvider>
-      <UserTerminalContent />
-    </SessionProvider>
-  );
+function Focus({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) {
+  return <section className="focus-content"><p className="eyebrow">Layanan SAMBUT</p><h1>{title}</h1><p className="lead">{description}</p>{children && <div className="button-row centered">{children}</div>}</section>;
+}
+
+function RoleMismatch({ leaveSession }: { leaveSession: () => void }) {
+  return <main className="focus-page"><section className="focus-content compact"><h1>Sesi petugas sedang aktif</h1><p className="lead">Gunakan konteks browser lain untuk terminal pengguna.</p><button className="button secondary" onClick={leaveSession}>Tinggalkan sesi</button></section></main>;
 }

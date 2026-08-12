@@ -17,7 +17,7 @@ const sourceSans = Source_Sans_3({
 
 export const metadata: Metadata = {
   title: "SAMBUT - Isyarat tersambut. Layanan berlanjut.",
-  description: "Sistem Komunikasi Dua Arah Berbasis Computer Vision dan Workflow-Gated Sign-to-Intent untuk Pendaftaran Puskesmas",
+  description: "Sistem aksesibilitas untuk komunikasi administratif di layanan pendaftaran Puskesmas.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -32,4 +32,3 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
-

@@ -1,100 +1,60 @@
 export type WorkflowState =
-  | 'START'
-  | 'PATIENT_STATUS'
-  | 'IDENTITY'
-  | 'INSURANCE'
-  | 'DESTINATION'
-  | 'WAITING_STAFF_QUESTION'
-  | 'CUSTOM_QUESTION'
-  | 'CONFIRM'
-  | 'COMPLETED';
+  | 'SESSION_START'
+  | 'PURPOSE_TREATMENT_CHECK'
+  | 'PURPOSE_REFERRAL_CHECK'
+  | 'PURPOSE_ADMIN_CHECK'
+  | 'IDENTITY_DOCUMENT'
+  | 'INSURANCE_DOCUMENT'
+  | 'NEXT_STEP'
+  | 'COMPLETE';
 
-export type UserIntent =
-  | 'YA'
-  | 'TIDAK'
-  | 'TERIMA_KASIH'
-  | 'SAKIT'
-  | 'TOLONG'
-  | 'NEW_PATIENT'
-  | 'RETURNING_PATIENT'
-  | 'BPJS'
-  | 'GENERAL_PATIENT'
-  | 'UNKNOWN';
+export type Purpose = 'TREATMENT' | 'REFERRAL' | 'ADMIN_DOCUMENT';
+export type SignIntent = 'SIGN_YES' | 'SIGN_NO' | 'SIGN_HELP' | 'SIGN_UNKNOWN';
+export type PredictionStatus = 'MATCHED' | 'UNKNOWN' | 'MODEL_UNAVAILABLE';
+export type RecoveryStatus = 'NONE' | 'UNKNOWN' | 'TEXT_FALLBACK' | 'HUMAN_HELP';
+export type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'RECONNECTING';
+export type Role = 'STAFF' | 'USER';
 
-export type StaffIntent =
-  | 'TANYA_STATUS_PASIEN'
-  | 'TANYA_KELUHAN'
-  | 'TANYA_BPJS'
-  | 'KONFIRMASI'
-  | 'INSTRUKSI_TUNGGU'
-  | 'INSTRUKSI_MASUK'
-  | 'UNKNOWN';
-
-export type ConfidenceBand = 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
-
-export interface CustomQuestionItem {
-  id: string;
-  questionText: string;
-  patientAnswer?: string;
-  timestamp: string;
-}
-
-export interface SessionState {
+export interface SessionSnapshot {
   session_id: string;
-  role_status: 'WAITING' | 'PAIRED' | 'ACTIVE' | 'DISCONNECTED';
+  version: number;
   workflow_state: WorkflowState;
-  staff_view_state?: WorkflowState;
-  current_question: {
-    text: string;
-    bisindo_video_url?: string;
-    sign_description?: string;
-  };
-  question_history?: string[];
-  staff_transcript: string | null;
-  staff_intent: StaffIntent | null;
-  user_intent: UserIntent | null;
-  user_confirmed_text: string | null;
-  confidence: number;
-  confidence_band: ConfidenceBand;
-  retry_count: number;
-  need_human_help: boolean;
-  has_pending_custom_question?: boolean;
-  custom_questions_list?: CustomQuestionItem[];
-  ktp_verification_status?: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
-  ktp_image_url?: string | null;
-  patient_answers?: Array<{
-    question: string;
-    answer: string;
-    confidence: number;
-    timestamp: string;
-  }>;
-  started_at: string;
+  resolved_purpose: Purpose | null;
+  active_question: string | null;
+  recovery_status: RecoveryStatus;
+  exact_text: string | null;
+  next_step: string | null;
+  next_step_acknowledged: boolean;
+  staff_connected: boolean;
+  user_connected: boolean;
+  last_response: Record<string, unknown> | null;
+  created_at: string;
   updated_at: string;
+  expires_at: string;
 }
 
-export interface SignPredictRequest {
-  session_id: string;
-  landmarks: number[][]; // 30 frames x 261 features
+export interface Credentials {
+  role: Role;
+  sessionId: string;
+  token: string;
+  joinCode?: string;
 }
 
-export interface SignPredictResponse {
-  status: 'success' | 'error';
-  intent: UserIntent;
-  confidence: number;
-  is_reliable: boolean;
-  session_id: string;
+export interface SignPrediction {
+  status: PredictionStatus;
+  intent: SignIntent | null;
+  confidence: number | null;
+  latency_ms: number | null;
+  prediction_id: string | null;
 }
 
-export interface SpeechParseRequest {
-  session_id: string;
-  text: string;
-  context?: string;
-}
-
-export interface SpeechParseResponse {
-  status: 'success' | 'error';
-  intent: StaffIntent;
-  confidence: number;
-  matched_keywords?: string[];
-  session_id: string;
+export class ApiError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status: number,
+    public readonly snapshot?: SessionSnapshot,
+  ) {
+    super(message);
+  }
 }
