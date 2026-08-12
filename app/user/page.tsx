@@ -78,7 +78,7 @@ export default function UserPage() {
     <div className="app-shell">
       <Header role="user" />
       <main className="user-page" aria-live="polite">
-        <div className="state-caption"><span>{stateId}</span><span>{connection === 'CONNECTED' ? 'Terhubung dengan petugas' : 'Status koneksi berubah'}</span></div>
+        <div className="state-caption"><span>{stateId}</span><span>{connection === 'CONNECTED' ? 'Terhubung dengan petugas' : 'Status koneksi berubah'}</span><button className="text-action" onClick={leaveSession}>Tinggalkan sesi</button></div>
         {offline && (
           <section className="focus-content compact">
             <h1>Koneksi terputus</h1>

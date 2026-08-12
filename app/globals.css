@@ -97,6 +97,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 .user-page { align-content: center; grid-template-rows: auto auto; }
 .state-caption { position: absolute; top: 82px; left: 50%; transform: translateX(-50%); width: min(1160px, calc(100% - 48px)); display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; }
+.text-action { padding: 0; border: 0; color: var(--brand-strong); background: transparent; cursor: pointer; font-weight: 700; }
 .split-layout { width: min(1120px, 100%); display: grid; grid-template-columns: 1.08fr .92fr; gap: 64px; align-items: center; }
 .question-pane { padding-right: 48px; border-right: 1px solid var(--line); }
 .question-pane h1 { font-size: clamp(38px, 4vw, 56px); }
