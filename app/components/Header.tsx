@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from '../lib/SessionContext';
 
 interface HeaderProps {
-  role: 'staff' | 'user' | 'landing';
+  role: 'staff' | 'user' | 'landing' | 'demo';
 }
 
 export const Header: React.FC<HeaderProps> = ({ role }) => {
@@ -19,44 +19,37 @@ export const Header: React.FC<HeaderProps> = ({ role }) => {
   }, [router]);
 
   return (
-    <header className="h-[64px] bg-white border-b border-[#D9E1DD] px-6 sm:px-12 flex items-center justify-between sticky top-0 z-50">
-      <div className="flex items-center gap-4">
-        <Link href="/" prefetch={true} className="flex items-center gap-2 group">
-          <div className="w-9 h-9 rounded-lg bg-[#126B55] flex items-center justify-center text-white font-bold text-lg shadow-sm group-hover:bg-[#095442] transition-colors">
+    <header className="h-[64px] bg-white border-b border-[#D9E1DD] px-6 sm:px-12 flex items-center justify-between sticky top-0 z-50 select-none">
+      {/* Left Logo Section - Fixed Position */}
+      <div className="flex items-center gap-3 min-w-[220px]">
+        <Link href="/" prefetch={true} className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded bg-[#126B55] flex items-center justify-center text-white font-bold text-base">
             🤟
           </div>
-          <div>
+          <div className="flex items-baseline gap-2">
             <span className="font-heading font-bold text-xl text-[#13231F] tracking-tight">SAMBUT</span>
           </div>
         </Link>
       </div>
 
-      <div className="flex items-center gap-3">
-        {/* Session Code Badge - Only shown exclusively for staff */}
-        {role === 'staff' && (
-          <div className="flex items-center gap-2 bg-[#F8FAF9] border border-[#D9E1DD] px-3 py-1.5 rounded-md text-xs font-medium text-[#13231F]">
-            <span className="w-2 h-2 rounded-full bg-[#16734E] animate-pulse"></span>
-            <span className="text-[#63736E]">Kode Sesi:</span>
-            <strong suppressHydrationWarning className="font-mono text-sm tracking-wider text-[#126B55]">{session.session_id}</strong>
-          </div>
-        )}
-
-        {/* Human Help Alert Badge */}
+      {/* Right Controls Container - Always Fixed and Locked Position across all routes */}
+      <div className="flex items-center justify-end gap-4 shrink-0">
+        {/* Human Assistance Badge */}
         {session.need_human_help && (
-          <div className="bg-[#B42318] text-white text-xs px-3 py-1.5 rounded-md font-semibold animate-bounce flex items-center gap-1.5 shadow-sm">
+          <div className="bg-[#B42318] text-white text-xs px-3 py-1 rounded font-semibold flex items-center gap-1.5 animate-pulse">
             <span>⚠️</span>
-            <span>Bantuan Petugas Diminta</span>
+            <span className="hidden sm:inline">Bantuan Petugas Diminta</span>
           </div>
         )}
 
-        {/* Navigation role links (2 modes as per PRD) */}
-        <nav className="hidden md:flex items-center gap-1 bg-[#F8FAF9] p-1 rounded-lg border border-[#D9E1DD] text-xs">
+        {/* Navigation Role Links */}
+        <nav className="flex items-center gap-1 bg-[#F8FAF9] p-1 rounded border border-[#D9E1DD] text-xs">
           <Link
             href="/user"
             prefetch={true}
-            className={`px-3 py-1 rounded-md font-medium transition-colors ${
+            className={`px-3 py-1 rounded font-semibold transition-colors ${
               role === 'user'
-                ? 'bg-[#126B55] text-white shadow-xs'
+                ? 'bg-[#126B55] text-white'
                 : 'text-[#63736E] hover:text-[#13231F]'
             }`}
           >
@@ -65,9 +58,9 @@ export const Header: React.FC<HeaderProps> = ({ role }) => {
           <Link
             href="/staff"
             prefetch={true}
-            className={`px-3 py-1 rounded-md font-medium transition-colors ${
+            className={`px-3 py-1 rounded font-semibold transition-colors ${
               role === 'staff'
-                ? 'bg-[#126B55] text-white shadow-xs'
+                ? 'bg-[#126B55] text-white'
                 : 'text-[#63736E] hover:text-[#13231F]'
             }`}
           >

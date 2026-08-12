@@ -11,7 +11,7 @@ interface CameraPreviewProps {
 }
 
 export const CameraPreview: React.FC<CameraPreviewProps> = ({ onCaptureDone, onCancel }) => {
-  const { session, submitKtpForVerification } = useSession();
+  const { session } = useSession();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [streamActive, setStreamActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -150,13 +150,6 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({ onCaptureDone, onC
     setTimeout(async () => {
       setIsRecording(false);
       
-      if (session.workflow_state === 'IDENTITY') {
-        const capturedPhoto = capturePhotoFromVideo();
-        submitKtpForVerification(capturedPhoto);
-        onCancel();
-        return;
-      }
-
       // Generate synthetic 30 frames x 261 features for backend test or intent prediction
       const dummyLandmarks: number[][] = Array.from({ length: 30 }, () =>
         Array.from({ length: 261 }, () => Math.random() * 0.5 - 0.25)

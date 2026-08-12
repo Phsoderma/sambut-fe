@@ -4,6 +4,8 @@ export type WorkflowState =
   | 'IDENTITY'
   | 'INSURANCE'
   | 'DESTINATION'
+  | 'WAITING_STAFF_QUESTION'
+  | 'CUSTOM_QUESTION'
   | 'CONFIRM'
   | 'COMPLETED';
 
@@ -30,6 +32,13 @@ export type StaffIntent =
 
 export type ConfidenceBand = 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
 
+export interface CustomQuestionItem {
+  id: string;
+  questionText: string;
+  patientAnswer?: string;
+  timestamp: string;
+}
+
 export interface SessionState {
   session_id: string;
   role_status: 'WAITING' | 'PAIRED' | 'ACTIVE' | 'DISCONNECTED';
@@ -49,6 +58,7 @@ export interface SessionState {
   retry_count: number;
   need_human_help: boolean;
   has_pending_custom_question?: boolean;
+  custom_questions_list?: CustomQuestionItem[];
   ktp_verification_status?: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
   ktp_image_url?: string | null;
   patient_answers?: Array<{

@@ -13,6 +13,20 @@
   --color-error: #B42318;
 }
 
+/* Hide scrollbars globally while preserving scroll functionality */
+html, body, * {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 @theme {
   --color-ground: #F8FAF9;
   --color-surface: #FFFFFF;
@@ -37,9 +51,9 @@ body {
   font-family: var(--font-source-sans), sans-serif;
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
 }
 
 h1, h2, h3, h4, .font-heading {
   font-family: var(--font-plus-jakarta), sans-serif;
 }
-
