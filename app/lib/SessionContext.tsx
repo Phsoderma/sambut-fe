@@ -11,6 +11,7 @@ interface SessionContextType {
   goToNextState: () => void;
   goToPreviousState: () => void;
   setWorkflowState: (state: WorkflowState) => void;
+  setStaffViewState: (state: WorkflowState) => void;
   setCurrentQuestion: (questionText: string) => void;
   sendCustomQuestion: (questionText: string) => void;
   finishStaffCustomQuestions: () => void;
@@ -31,6 +32,7 @@ const DEFAULT_SESSION: SessionState = {
   session_id: 'SMB-8821',
   role_status: 'PAIRED',
   workflow_state: 'START',
+  staff_view_state: 'START',
   current_question: {
     text: WORKFLOW_STATES.START.questionText,
     sign_description: WORKFLOW_STATES.START.signDescription,
@@ -131,6 +133,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ...prev,
         role_status: 'PAIRED',
         workflow_state: nextState,
+        staff_view_state: nextState,
         current_question: {
           text: config.questionText,
           bisindo_video_url: config.bisindoVideoUrl,
@@ -142,6 +145,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   }, [updateSession]);
 
+  // Set active patient state AND staff view state together
   const setWorkflowState = useCallback((state: WorkflowState) => {
     updateSession((prev) => {
       const config = WORKFLOW_STATES[state];
@@ -153,6 +157,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return {
         ...prev,
         workflow_state: state,
+        staff_view_state: state,
         current_question: {
           text: config.questionText,
           bisindo_video_url: config.bisindoVideoUrl,
@@ -167,6 +172,15 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updated_at: new Date().toISOString(),
       };
     });
+  }, [updateSession]);
+
+  // Set staff view state ONLY (allows staff to inspect steps without shifting patient tablet)
+  const setStaffViewState = useCallback((state: WorkflowState) => {
+    updateSession((prev) => ({
+      ...prev,
+      staff_view_state: state,
+      updated_at: new Date().toISOString(),
+    }));
   }, [updateSession]);
 
   const setCurrentQuestion = useCallback((questionText: string) => {
@@ -206,6 +220,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return {
         ...prev,
         workflow_state: 'CUSTOM_QUESTION',
+        staff_view_state: 'CUSTOM_QUESTION',
         current_question: {
           text: questionText,
           sign_description: 'Jawab pertanyaan petugas ini melalui BISINDO atau ketikan teks.',
@@ -228,6 +243,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return {
         ...prev,
         workflow_state: 'CONFIRM',
+        staff_view_state: 'CONFIRM',
         current_question: {
           text: config.questionText,
           bisindo_video_url: config.bisindoVideoUrl,
@@ -337,6 +353,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return {
         ...prev,
         workflow_state: nextState,
+        staff_view_state: nextState,
         current_question: {
           text: nextConfig.questionText,
           bisindo_video_url: nextConfig.bisindoVideoUrl,
@@ -373,6 +390,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return {
         ...prev,
         workflow_state: 'INSURANCE',
+        staff_view_state: 'INSURANCE',
         current_question: {
           text: WORKFLOW_STATES.INSURANCE.questionText,
           bisindo_video_url: WORKFLOW_STATES.INSURANCE.bisindoVideoUrl,
@@ -404,6 +422,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return {
         ...prev,
         workflow_state: 'DESTINATION',
+        staff_view_state: 'DESTINATION',
         current_question: {
           text: WORKFLOW_STATES.DESTINATION.questionText,
           bisindo_video_url: WORKFLOW_STATES.DESTINATION.bisindoVideoUrl,
@@ -442,6 +461,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       session_id: 'SMB-8821',
       role_status: 'PAIRED',
       workflow_state: 'START',
+      staff_view_state: 'START',
       current_question: {
         text: WORKFLOW_STATES.START.questionText,
         sign_description: WORKFLOW_STATES.START.signDescription,
@@ -474,6 +494,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       goToNextState,
       goToPreviousState,
       setWorkflowState,
+      setStaffViewState,
       setCurrentQuestion,
       sendCustomQuestion,
       finishStaffCustomQuestions,
@@ -496,6 +517,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       goToNextState,
       goToPreviousState,
       setWorkflowState,
+      setStaffViewState,
       setCurrentQuestion,
       sendCustomQuestion,
       finishStaffCustomQuestions,

@@ -43,6 +43,7 @@ export interface SessionState {
   session_id: string;
   role_status: 'WAITING' | 'PAIRED' | 'ACTIVE' | 'DISCONNECTED';
   workflow_state: WorkflowState;
+  staff_view_state?: WorkflowState;
   current_question: {
     text: string;
     bisindo_video_url?: string;

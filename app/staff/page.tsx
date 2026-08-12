@@ -10,9 +10,7 @@ function StaffTerminalContent() {
   const {
     session,
     startRegistrationByStaff,
-    goToNextState,
-    goToPreviousState,
-    setWorkflowState,
+    setStaffViewState,
     sendCustomQuestion,
     finishStaffCustomQuestions,
     confirmKtpDoc,
@@ -26,17 +24,18 @@ function StaffTerminalContent() {
   const [isListening, setIsListening] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
 
-  const currentConfig = WORKFLOW_STATES[session.workflow_state];
+  // Active state viewed by staff (defaults to patient's active state if not set)
+  const activeStaffState: WorkflowState = session.staff_view_state || session.workflow_state;
+  const currentConfig = WORKFLOW_STATES[activeStaffState];
 
-  // Voice STT is unlocked ONLY after reaching DESTINATION, WAITING_STAFF_QUESTION, or CUSTOM_QUESTION
-  const isVoiceSttUnlocked =
-    session.workflow_state === 'DESTINATION' ||
+  // Voice STT card is visible ONLY in the step AFTER DESTINATION is answered (WAITING_STAFF_QUESTION or CUSTOM_QUESTION)
+  const isVoiceSttVisible =
     session.workflow_state === 'WAITING_STAFF_QUESTION' ||
     session.workflow_state === 'CUSTOM_QUESTION';
 
   // Speech Recognition integration (Web Speech API) - Fills text input ONLY
   const handleToggleMic = () => {
-    if (!isVoiceSttUnlocked) return;
+    if (!isVoiceSttVisible) return;
 
     if (isListening) {
       setIsListening(false);
@@ -85,10 +84,10 @@ function StaffTerminalContent() {
     }
   };
 
-  // Staff explicitly clicks "Kirim Pertanyaan" button to form & send custom question
+  // Staff explicitly clicks "Kirim Pertanyaan" button to form & send custom question to patient tablet
   const handleSendCustomQuestion = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!speechText.trim() || !isVoiceSttUnlocked) return;
+    if (!speechText.trim() || !isVoiceSttVisible) return;
     sendCustomQuestion(speechText);
     setSpeechText('');
   };
@@ -103,15 +102,11 @@ function StaffTerminalContent() {
 
   // Build dynamic horizontal stepper including dynamic custom questions
   const customQuestions = session.custom_questions_list || [];
-  const baseStepKeysBefore: WorkflowState[] = ['START', 'PATIENT_STATUS', 'IDENTITY', 'INSURANCE', 'DESTINATION'];
   const customStepKeys: { key: string; label: string; state: WorkflowState }[] = customQuestions.map((item, idx) => ({
     key: `custom_${idx}`,
     label: `Pertanyaan Tambahan ${idx + 1}`,
     state: 'CUSTOM_QUESTION',
   }));
-  if (session.workflow_state === 'WAITING_STAFF_QUESTION' && customQuestions.length === 0) {
-    // waiting state
-  }
 
   const allStepperItems: { key: string; label: string; state: WorkflowState }[] = [
     { key: 'START', label: WORKFLOW_STATES.START.title, state: 'START' },
@@ -127,6 +122,9 @@ function StaffTerminalContent() {
     { key: 'COMPLETED', label: WORKFLOW_STATES.COMPLETED.title, state: 'COMPLETED' },
   ];
 
+  // Completed steps indices for checkmarks
+  const activePatientIndex = allStepperItems.findIndex((i) => i.state === session.workflow_state);
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F8FAF9]">
       <Header role="staff" />
@@ -136,12 +134,9 @@ function StaffTerminalContent() {
         {/* Horizontal Stepper Alur Pendaftaran Ke Samping */}
         <div className="bg-white rounded-xl border border-[#D9E1DD] p-5 shadow-xs overflow-x-auto">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-[#126B55] text-lg font-bold">📋</span>
-              <h2 className="font-heading font-bold text-base text-[#13231F]">
-                Alur Pendaftaran Puskesmas (Horizontal Stepper)
-              </h2>
-            </div>
+            <h2 className="font-heading font-bold text-base text-[#13231F]">
+              Alur Pendaftaran Puskesmas (Horizontal Stepper)
+            </h2>
             <button
               onClick={resetSession}
               className="text-xs text-[#63736E] hover:text-[#B42318] underline font-medium cursor-pointer"
@@ -150,28 +145,27 @@ function StaffTerminalContent() {
             </button>
           </div>
 
-          {/* Horizontal Stepper Track */}
+          {/* Horizontal Stepper Track - Staff can browse without shifting patient */}
           <div className="flex items-center gap-2 min-w-[850px]">
             {allStepperItems.map((stepItem, idx) => {
-              const isActive = session.workflow_state === stepItem.state;
-              const activeIndex = allStepperItems.findIndex((i) => i.state === session.workflow_state);
-              const isPast = activeIndex > idx;
+              const isInspected = activeStaffState === stepItem.state;
+              const isCompleted = activePatientIndex > idx;
 
               return (
                 <React.Fragment key={stepItem.key}>
                   <button
-                    onClick={() => setWorkflowState(stepItem.state)}
+                    onClick={() => setStaffViewState(stepItem.state)}
                     className={`flex-1 p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
-                      isActive
+                      isInspected
                         ? 'bg-[#126B55] text-white border-[#126B55] shadow-xs'
-                        : isPast
-                        ? 'bg-[#F8FAF9] text-[#126B55] border-emerald-200'
+                        : isCompleted
+                        ? 'bg-[#F8FAF9] text-[#126B55] border-emerald-200 font-semibold'
                         : 'bg-[#F8FAF9] text-[#63736E] border-[#D9E1DD] hover:border-[#126B55]'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] font-mono font-bold opacity-80">STEP 0{idx + 1}</span>
-                      {isPast && <span className="text-xs font-bold">✓</span>}
+                      {isCompleted && <span className="text-xs font-bold text-[#126B55]">✓</span>}
                     </div>
                     <span className="text-xs font-heading font-bold block truncate">
                       {stepItem.label}
@@ -190,39 +184,69 @@ function StaffTerminalContent() {
         <div className="grid lg:grid-cols-12 gap-6 items-start">
           {/* Left Column (7 cols): Active Question & Push-to-Talk */}
           <div className="lg:col-span-7 space-y-6">
-            {/* Active Question / Session Control Box */}
+            
+            {/* STANDALONE ACTION BOX (ABOVE QUESTION BOX) - Clean Centered Layout Without Subtext or Emojis */}
+            {session.workflow_state === 'START' && (
+              <div className="bg-white rounded-xl border border-emerald-200 p-6 shadow-xs bg-emerald-50/60 text-center space-y-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#126B55] block text-center">
+                  AKSI PETUGAS LOKET: PERSIAPAN SESI
+                </span>
+                <button
+                  onClick={startRegistrationByStaff}
+                  className="w-full py-3.5 bg-[#126B55] hover:bg-[#095442] text-white font-heading font-bold text-sm rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center text-center"
+                >
+                  Mulai Sesi Pendaftaran Pasien
+                </button>
+              </div>
+            )}
+
+            {(session.workflow_state === 'WAITING_STAFF_QUESTION' || session.workflow_state === 'CUSTOM_QUESTION') && (
+              <div className="bg-white rounded-xl border border-emerald-200 p-6 shadow-xs bg-emerald-50/60 text-center space-y-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#126B55] block text-center">
+                  KONFIRMASI SESI PERTANYAAN PETUGAS
+                </span>
+                <button
+                  onClick={finishStaffCustomQuestions}
+                  className="w-full py-3.5 bg-[#126B55] hover:bg-[#095442] text-white text-xs font-bold rounded-xl shadow-sm cursor-pointer flex items-center justify-center text-center"
+                >
+                  Tidak Ada Pertanyaan Lagi, Lanjut Ke Konfirmasi Pendaftaran
+                </button>
+              </div>
+            )}
+
+            {session.workflow_state === 'COMPLETED' && (
+              <div className="bg-white rounded-xl border border-emerald-200 p-6 shadow-xs bg-emerald-50/60 text-center space-y-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#126B55] block text-center">
+                  AKSI SELESAI PENDAFTARAN
+                </span>
+                <button
+                  onClick={startNextPatient}
+                  className="w-full py-3.5 bg-[#126B55] hover:bg-[#095442] text-white font-heading font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center text-center"
+                >
+                  Selesai dan Lanjut Pasien Berikutnya
+                </button>
+              </div>
+            )}
+
+            {/* Active Question Box */}
             <div className="bg-white rounded-xl border border-[#D9E1DD] p-6 shadow-xs">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-[#126B55] uppercase tracking-wider">
-                  Pertanyaan Aktif Pada Tablet Pasien
+                  Pertanyaan Dilihat Petugas ({WORKFLOW_STATES[activeStaffState]?.title})
                 </span>
                 <span className="text-xs font-mono bg-[#F8FAF9] px-2 py-0.5 rounded border border-[#D9E1DD] text-[#63736E]">
-                  State: {session.workflow_state}
+                  Tablet Pasien: {session.workflow_state}
                 </span>
               </div>
 
               <p className="font-heading font-bold text-2xl text-[#13231F] mb-4">
-                {session.current_question?.text || currentConfig?.questionText}
+                {activeStaffState === 'CUSTOM_QUESTION' && session.current_question?.text
+                  ? session.current_question.text
+                  : currentConfig?.questionText}
               </p>
 
-              {/* Start Registration Button when in START state */}
-              {session.workflow_state === 'START' && (
-                <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-3 mb-4 text-center">
-                  <p className="text-xs text-emerald-900 font-semibold">
-                    Tablet pasien saat ini menampilkan layar menunggu. Klik tombol di bawah untuk memulai pertanyaan pendaftaran:
-                  </p>
-                  <button
-                    onClick={startRegistrationByStaff}
-                    className="w-full py-3.5 bg-[#126B55] hover:bg-[#095442] text-white font-heading font-bold text-sm rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <span>▶️</span>
-                    <span>Mulai Sesi Pendaftaran Pasien</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Controls for Physical Document Verification */}
-              {session.workflow_state === 'IDENTITY' && (
+              {/* ATTACHED CONTROLS INSIDE QUESTION BOX FOR KTP & BPJS ONLY */}
+              {activeStaffState === 'IDENTITY' && (
                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-3 mb-4">
                   <span className="text-xs font-bold text-emerald-900 block">
                     Konfirmasi Pemeriksaan KTP / KK Fisik Pasien:
@@ -232,19 +256,19 @@ function StaffTerminalContent() {
                       onClick={() => confirmKtpDoc('RECEIVED')}
                       className="py-3 bg-[#126B55] hover:bg-[#095442] text-white text-xs font-bold rounded-lg shadow-sm cursor-pointer"
                     >
-                      ✓ Dokumen KTP/KK Diterima
+                      Dokumen KTP/KK Diterima
                     </button>
                     <button
                       onClick={() => confirmKtpDoc('NOT_AVAILABLE')}
                       className="py-3 bg-white text-[#13231F] border border-[#D9E1DD] hover:bg-gray-50 text-xs font-semibold rounded-lg cursor-pointer"
                     >
-                      ✗ Dokumen Tidak Tersedia
+                      Dokumen Tidak Tersedia
                     </button>
                   </div>
                 </div>
               )}
 
-              {session.workflow_state === 'INSURANCE' && (
+              {activeStaffState === 'INSURANCE' && (
                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-3 mb-4">
                   <span className="text-xs font-bold text-emerald-900 block">
                     Konfirmasi Pemeriksaan Kartu BPJS / JKN Fisik Pasien:
@@ -254,139 +278,92 @@ function StaffTerminalContent() {
                       onClick={() => confirmBpjsDoc('RECEIVED')}
                       className="py-3 bg-[#126B55] hover:bg-[#095442] text-white text-xs font-bold rounded-lg shadow-sm cursor-pointer"
                     >
-                      ✓ Kartu BPJS Diterima
+                      Kartu BPJS Diterima
                     </button>
                     <button
                       onClick={() => confirmBpjsDoc('NOT_USED')}
                       className="py-3 bg-white text-[#13231F] border border-[#D9E1DD] hover:bg-gray-50 text-xs font-semibold rounded-lg cursor-pointer"
                     >
-                      ✗ Pasien Umum (Tanpa BPJS)
+                      Pasien Umum (Tanpa BPJS)
                     </button>
                   </div>
-                </div>
-              )}
-
-              {/* Action buttons during WAITING_STAFF_QUESTION or CUSTOM_QUESTION state */}
-              {(session.workflow_state === 'WAITING_STAFF_QUESTION' || session.workflow_state === 'CUSTOM_QUESTION') && (
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-3 mb-4">
-                  <p className="text-xs font-bold text-emerald-900">
-                    Sesi Pertanyaan Langsung Petugas Aktif:
-                  </p>
-                  <p className="text-xs text-emerald-800">
-                    Gunakan panel Voice STT di bawah untuk bertanya, atau klik tombol di bawah jika tidak ada pertanyaan lagi:
-                  </p>
-                  <button
-                    onClick={finishStaffCustomQuestions}
-                    className="w-full py-3 bg-[#126B55] hover:bg-[#095442] text-white text-xs font-bold rounded-lg shadow-sm cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <span>✓</span>
-                    <span>Tidak Ada Pertanyaan Lagi → Lanjut Ke Konfirmasi Pendaftaran</span>
-                  </button>
-                </div>
-              )}
-
-              {session.workflow_state === 'COMPLETED' && (
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-3 mb-4 text-center">
-                  <p className="text-xs text-emerald-900 font-semibold">
-                    Pendaftaran selesai. Klik tombol di bawah untuk mengembalikan tablet pasien ke layar menunggu pasien berikutnya:
-                  </p>
-                  <button
-                    onClick={startNextPatient}
-                    className="w-full py-3 bg-[#126B55] hover:bg-[#095442] text-white font-heading font-semibold text-xs rounded-lg shadow-sm transition-all cursor-pointer"
-                  >
-                    Selesai & Lanjut Pasien Berikutnya ↺
-                  </button>
                 </div>
               )}
 
               <div className="flex items-center justify-between pt-3 border-t border-[#D9E1DD] text-xs text-[#63736E]">
-                <span>Petugas: Gunakan tombol di atas atau navigasi alur.</span>
+                <span>Petugas dapat meninjau alur tanpa menggeser layar tablet pasien.</span>
                 <div className="flex gap-2">
                   <button
-                    onClick={goToPreviousState}
+                    onClick={() => setStaffViewState(currentConfig?.previousState || 'START')}
                     disabled={!currentConfig?.previousState}
                     className="px-3 py-1.5 bg-white border border-[#D9E1DD] rounded-md hover:bg-gray-50 disabled:opacity-40 cursor-pointer text-xs"
                   >
-                    ← Sebelumnya
+                    Lihat Sebelumnya
                   </button>
                   <button
-                    onClick={goToNextState}
+                    onClick={() => setStaffViewState(currentConfig?.nextState || 'COMPLETED')}
                     disabled={!currentConfig?.nextState}
                     className="px-3 py-1.5 bg-[#126B55] text-white rounded-md hover:bg-[#095442] disabled:opacity-40 cursor-pointer font-semibold text-xs"
                   >
-                    Selanjutnya →
+                    Lihat Selanjutnya
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Push-to-Talk Voice Recognition / Speech-to-Text Card (Unlocked after DESTINATION) */}
-            <div className={`bg-white rounded-xl border p-6 shadow-xs transition-opacity ${
-              isVoiceSttUnlocked ? 'border-[#D9E1DD] opacity-100' : 'border-gray-200 opacity-60'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-heading font-bold text-lg text-[#13231F]">
-                  Suara Petugas Loket (Voice Recognition STT)
-                </h3>
-                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${
-                  isVoiceSttUnlocked ? 'bg-emerald-50 text-[#126B55] border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'
-                }`}>
-                  {isVoiceSttUnlocked ? '🔓 Aktif' : '🔒 Terkunci'}
-                </span>
-              </div>
+            {/* Push-to-Talk Voice Recognition / Speech-to-Text Card (Appears ONLY in step AFTER DESTINATION) */}
+            {isVoiceSttVisible && (
+              <div className="bg-white rounded-xl border border-[#D9E1DD] p-6 shadow-xs transition-all">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-heading font-bold text-lg text-[#13231F]">
+                    Suara Petugas Loket (Voice Recognition STT)
+                  </h3>
+                  <span className="text-[11px] font-semibold bg-emerald-50 text-[#126B55] px-2 py-0.5 rounded border border-emerald-200">
+                    Pertanyaan Tambahan Aktif
+                  </span>
+                </div>
 
-              {!isVoiceSttUnlocked ? (
-                <p className="text-xs text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-200">
-                  🔒 Fitur Voice Recognition dikunci. Fitur ini akan aktif secara otomatis setelah pertanyaan <strong>Keperluan & Poli Tujuan</strong> dijawab oleh pasien.
+                <p className="text-xs text-[#63736E] mb-4">
+                  Bicara melalui mikrofon atau ketik pertanyaan tambahan. Tekan Kirim Pertanyaan untuk mengirimkan langsung ke tablet pasien.
                 </p>
-              ) : (
-                <>
-                  <p className="text-xs text-[#63736E] mb-4">
-                    Bicara melalui mikrofon atau ketik pertanyaan tambahan. Tekan **&apos;Kirim Pertanyaan&apos;** untuk mengirimkan langsung ke tablet pasien.
+
+                <div className="flex items-center gap-4 mb-4">
+                  <button
+                    onClick={handleToggleMic}
+                    className={`flex-1 py-4 rounded-xl font-heading font-bold text-base transition-all flex items-center justify-center shadow-sm cursor-pointer ${
+                      isListening
+                        ? 'bg-[#B42318] text-white animate-pulse'
+                        : 'bg-[#13231F] hover:bg-black text-white'
+                    }`}
+                  >
+                    <span>{isListening ? 'Mendengarkan... (Tekan untuk berhenti)' : 'Tahan / Tekan untuk Bicara (STT)'}</span>
+                  </button>
+                </div>
+
+                {speechError && (
+                  <p className="text-xs text-[#B42318] mb-3 bg-red-50 p-2 rounded border border-red-200">
+                    {speechError}
                   </p>
+                )}
 
-                  <div className="flex items-center gap-4 mb-4">
-                    <button
-                      onClick={handleToggleMic}
-                      disabled={!isVoiceSttUnlocked}
-                      className={`flex-1 py-4 rounded-xl font-heading font-bold text-base transition-all flex items-center justify-center gap-3 shadow-sm cursor-pointer ${
-                        isListening
-                          ? 'bg-[#B42318] text-white animate-pulse'
-                          : 'bg-[#13231F] hover:bg-black text-white disabled:opacity-50'
-                      }`}
-                    >
-                      <span className="text-2xl">{isListening ? '🛑' : '🎙️'}</span>
-                      <span>{isListening ? 'Mendengarkan... (Tekan untuk berhenti)' : 'Tahan / Tekan untuk Bicara (STT)'}</span>
-                    </button>
-                  </div>
-
-                  {speechError && (
-                    <p className="text-xs text-[#B42318] mb-3 bg-red-50 p-2 rounded border border-red-200">
-                      {speechError}
-                    </p>
-                  )}
-
-                  <form onSubmit={handleSendCustomQuestion} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={speechText}
-                      onChange={(e) => setSpeechText(e.target.value)}
-                      placeholder="Hasil ucapan STT / ketik pertanyaan tambahan di sini..."
-                      disabled={!isVoiceSttUnlocked}
-                      className="flex-1 px-4 py-2.5 border border-[#D9E1DD] rounded-lg text-xs bg-[#F8FAF9] focus:ring-2 focus:ring-[#126B55] outline-none disabled:bg-gray-100"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!speechText.trim() || !isVoiceSttUnlocked}
-                      className="px-5 py-2.5 bg-[#126B55] hover:bg-[#095442] disabled:opacity-40 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-xs flex items-center gap-1.5"
-                    >
-                      <span>🚀</span>
-                      <span>Kirim Pertanyaan</span>
-                    </button>
-                  </form>
-                </>
-              )}
-            </div>
+                <form onSubmit={handleSendCustomQuestion} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={speechText}
+                    onChange={(e) => setSpeechText(e.target.value)}
+                    placeholder="Hasil ucapan STT / ketik pertanyaan tambahan di sini..."
+                    className="flex-1 px-4 py-2.5 border border-[#D9E1DD] rounded-lg text-xs bg-[#F8FAF9] focus:ring-2 focus:ring-[#126B55] outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!speechText.trim()}
+                    className="px-5 py-2.5 bg-[#126B55] hover:bg-[#095442] disabled:opacity-40 text-white text-xs font-bold rounded-lg cursor-pointer transition-all shadow-xs flex items-center justify-center"
+                  >
+                    Kirim Pertanyaan
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
 
           {/* Right Column (5 cols): Current Answer & Full Answer History */}
@@ -405,7 +382,7 @@ function StaffTerminalContent() {
               {session.need_human_help && (
                 <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-900 animate-pulse space-y-3">
                   <div>
-                    <strong className="block text-sm mb-1">⚠️ Pasien Meminta Bantuan!</strong>
+                    <strong className="block text-sm mb-1">Pasien Meminta Bantuan!</strong>
                     <p className="text-xs text-red-800">
                       Pasien di tablet menekan tombol bantuan petugas. Mohon asistensi langsung di loket.
                     </p>
@@ -414,7 +391,7 @@ function StaffTerminalContent() {
                     onClick={resumeFromHelp}
                     className="w-full py-2 bg-[#B42318] hover:bg-red-900 text-white text-xs font-bold rounded-lg shadow-sm cursor-pointer"
                   >
-                    ✓ Selesaikan Bantuan & Lanjutkan Sesi Tablet
+                    Selesaikan Bantuan dan Lanjutkan Sesi Tablet
                   </button>
                 </div>
               )}
@@ -454,8 +431,7 @@ function StaffTerminalContent() {
                   }
                   className="w-full py-2.5 bg-[#16734E] hover:bg-emerald-800 text-white font-heading font-semibold text-xs rounded-lg shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2 mt-2"
                 >
-                  <span>🔊</span>
-                  <span>Bacakan Jawaban (TTS Suara)</span>
+                  Bacakan Jawaban (TTS Suara)
                 </button>
               )}
             </div>
@@ -463,12 +439,9 @@ function StaffTerminalContent() {
             {/* History Jawaban Pasien Untuk Tiap Pertanyaan */}
             <div className="bg-white rounded-xl border border-[#D9E1DD] p-6 shadow-xs">
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#D9E1DD]">
-                <div className="flex items-center gap-2">
-                  <span className="text-[#126B55] text-base">📜</span>
-                  <h3 className="font-heading font-bold text-base text-[#13231F]">
-                    Riwayat Jawaban Pasien
-                  </h3>
-                </div>
+                <h3 className="font-heading font-bold text-base text-[#13231F]">
+                  Riwayat Jawaban Pasien
+                </h3>
                 <span className="text-xs font-mono text-[#63736E]">
                   {session.patient_answers?.length || 0} Jawaban
                 </span>
