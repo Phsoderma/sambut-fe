@@ -162,6 +162,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .rehearsal-controls .button { min-height: 44px; white-space: nowrap; }
 .rehearsal-camera-state { margin: 8px 2px 0; }
 .completion-card { max-width: 680px; margin: 70px auto; padding: 32px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); text-align: center; }
+.completion-card .button { display: inline-flex; margin-top: 12px; text-decoration: none; }
+.rehearsal-camera img { width: 100%; height: 100%; object-fit: cover; }
+.proposal-box { position: absolute; z-index: 2; border: 4px solid #e7ff72; box-shadow: 0 0 0 9999px rgb(5 20 14 / .18); pointer-events: none; }
 
 @media (max-width: 900px) {
   .role-actions, .split-layout, .operational-page { grid-template-columns: 1fr; }

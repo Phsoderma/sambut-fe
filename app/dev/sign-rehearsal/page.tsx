@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Header } from '../../components/Header';
 import { chooseCamera, selectedVideoConstraints, stopMediaStream } from '../../lib/cameraDevices';
 import { captureSquareJpeg } from '../../lib/cameraFrames';
@@ -58,6 +59,7 @@ export default function SignRehearsalPage() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [diagnostic, setDiagnostic] = useState<DiagnosticResponse | null>(null);
   const [attemptKind, setAttemptKind] = useState<AttemptKind>('PRIMARY');
+  const [calibrationUnlocked, setCalibrationUnlocked] = useState(false);
 
   const complete = primaryIndex >= PLAN.length;
   const selectedClass = complete ? 'Neutral' : PLAN[primaryIndex];
@@ -100,6 +102,7 @@ export default function SignRehearsalPage() {
   }, [stop]);
 
   useEffect(() => { queueMicrotask(() => void start()); return stop; }, [start, stop]);
+  useEffect(() => { fetch(`${DETECTOR_URL}/calibration/status`).then((response) => response.json()).then((value) => setCalibrationUnlocked(value.unlocked === true)).catch(() => undefined); }, []);
 
   const capture = useCallback(() => {
     const video = videoRef.current;
@@ -156,7 +159,7 @@ export default function SignRehearsalPage() {
         <div><p className="eyebrow">Dev-only · hasil tersimpan otomatis</p><h1>Latihan &amp; Uji Isyarat</h1><p className="guidance">Frame tidak disimpan. ID run: <code>{runId}</code></p></div>
         <div className="rehearsal-progress"><strong>{complete ? '50/50 selesai' : `${selectedClass} ${classProgress(primaryIndex, selectedClass)}`}</strong><span>{Math.min(primaryIndex, 50)}/50 percobaan utama</span></div>
       </div>
-      {complete ? <section className="completion-card"><h2>Rangkaian utama selesai</h2><p>Semua 50 percobaan utama dan setiap retry telah dicatat. Jangan menambah atau menghapus hasil sebelum analisis forensik.</p></section> : <div className="rehearsal-grid">
+      {complete ? <section className="completion-card"><h2>Rangkaian utama selesai</h2><p>Semua 50 percobaan utama dan setiap retry telah dicatat. Jangan menambah atau menghapus hasil sebelum analisis forensik.</p>{calibrationUnlocked && <Link className="button primary" href="/dev/sign-calibration">Kalibrasi</Link>}</section> : <div className="rehearsal-grid">
         <div>
           <div className="rehearsal-camera"><video ref={videoRef} muted playsInline aria-label="Pratinjau Logitech C270" />{countdown !== null && <div className="countdown" aria-live="assertive">{countdown === 0 ? 'REKAM' : countdown}</div>}</div>
           <div className="rehearsal-controls">
