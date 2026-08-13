@@ -23,6 +23,8 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
   const [phase, setPhase] = useState<'PREPARING' | 'READY' | 'CAPTURING' | 'PROCESSING' | 'UNCERTAIN' | 'MATCHED'>('PREPARING');
   const [message, setMessage] = useState('Meminta izin kamera…');
   const [prediction, setPrediction] = useState<SignPrediction | null>(null);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [deviceId, setDeviceId] = useState('');
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -30,27 +32,63 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
     if (videoRef.current) videoRef.current.srcObject = null;
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const waitForVideo = useCallback(async (video: HTMLVideoElement) => {
+    if (video.readyState >= 2 && video.videoWidth > 0) return;
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new DOMException('Camera metadata timed out', 'NotReadableError')), 8_000);
+      const ready = () => {
+        if (!video.videoWidth) return;
+        window.clearTimeout(timeout);
+        video.removeEventListener('loadedmetadata', ready);
+        resolve();
+      };
+      video.addEventListener('loadedmetadata', ready);
+    });
+  }, []);
+
+  const startCamera = useCallback(async (selectedDeviceId = deviceId) => {
     stopCamera();
     setPhase('PREPARING');
     setMessage('Meminta izin kamera…');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
-        audio: false,
-      });
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new DOMException('Secure camera context required', 'SecurityError');
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: selectedDeviceId
+            ? { deviceId: { exact: selectedDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+            : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: 'user' } },
+          audio: false,
+        });
+      } catch (firstError) {
+        if (selectedDeviceId) throw firstError;
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
+        await waitForVideo(videoRef.current);
       }
+      const available = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === 'videoinput');
+      setDevices(available);
+      const selected = stream.getVideoTracks()[0]?.getSettings().deviceId ?? '';
+      if (selected) setDeviceId(selected);
       setPhase('READY');
       setMessage('Pastikan wajah, tangan, dan tubuh bagian atas terlihat.');
-    } catch {
+    } catch (caught) {
+      stopCamera();
       setPhase('UNCERTAIN');
-      setMessage('Kamera tidak tersedia. Periksa izin kamera atau gunakan jawaban teks.');
+      const name = caught instanceof DOMException ? caught.name : 'CameraError';
+      setMessage(name === 'NotAllowedError' || name === 'SecurityError'
+        ? 'Izin kamera ditolak atau konteks tidak aman. Izinkan kamera, atau gunakan jawaban teks.'
+        : name === 'NotReadableError'
+          ? 'Kamera sedang dipakai aplikasi lain atau tidak dapat dibaca. Tutup aplikasi kamera lain lalu coba lagi.'
+          : name === 'NotFoundError'
+            ? 'Perangkat kamera tidak ditemukan. Gunakan jawaban teks atau minta bantuan petugas.'
+            : 'Kamera tidak tersedia. Periksa perangkat atau gunakan jawaban teks.');
     }
-  }, [stopCamera]);
+  }, [deviceId, stopCamera, waitForVideo]);
 
   useEffect(() => {
     const timer = window.setTimeout(startCamera, 0);
@@ -135,9 +173,16 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
           <p className={phase === 'UNCERTAIN' ? 'error-text' : 'guidance'}>{message}</p>
         </div>
         <div className="button-row">
+          {devices.length > 1 && phase !== 'CAPTURING' && phase !== 'PROCESSING' && (
+            <label className="camera-device">Kamera
+              <select value={deviceId} onChange={(event) => { setDeviceId(event.target.value); void startCamera(event.target.value); }}>
+                {devices.map((device, index) => <option value={device.deviceId} key={device.deviceId}>{device.label || `Kamera ${index + 1}`}</option>)}
+              </select>
+            </label>
+          )}
           {phase === 'READY' && <button className="button primary" onClick={capture}>Mulai isyarat</button>}
           {phase === 'MATCHED' && <button className="button primary" onClick={accept} disabled={busy}>Benar, kirim jawaban</button>}
-          {(phase === 'UNCERTAIN' || phase === 'MATCHED') && <button className="button secondary" onClick={startCamera}>Coba lagi</button>}
+          {(phase === 'UNCERTAIN' || phase === 'MATCHED') && <button className="button secondary" onClick={() => void startCamera()}>Coba lagi</button>}
           <button className="button secondary" onClick={onText}>Ketik jawaban</button>
           <button className="button quiet" onClick={onHelp}>Minta bantuan petugas</button>
           <button className="button quiet" onClick={onCancel}>Kembali</button>

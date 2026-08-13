@@ -26,3 +26,10 @@ For a second device on the same LAN, replace `127.0.0.1` with the developer lapt
 The browser keeps role credentials only in tab-scoped `sessionStorage` to support refresh during the demo. Authoritative state always comes from REST/WebSocket snapshots. Closing the tab clears the credentials; local storage and BroadcastChannel are not used for correctness.
 
 Camera access starts only after the user chooses the BISINDO response path. The runtime captures 30 real JPEG frames from the live stream, stops every MediaStream track after capture/cancel/unmount, and sends frames to the backend preprocessing adapter. It never generates landmarks or substitutes a semantic result when AI is unavailable.
+
+For camera isolation, `/dev/camera` exposes a developer-only diagnostic route
+that reports secure-context status, device enumeration, selected device,
+getUserMedia error, video dimensions, readiness, and frame extraction. The
+competition route keeps these details out of the patient UI, falls back from
+ideal 1280×720 user-facing constraints to `video: true`, distinguishes denied,
+busy, and missing-camera errors, and offers device selection after permission.
