@@ -85,6 +85,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .session-panel dd { margin: 4px 0 0; overflow-wrap: anywhere; font-weight: 700; }
 .pair-link { margin-top: 12px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .pair-link a { color: var(--brand-strong); text-decoration: underline; }
+.pair-qr { width: fit-content; margin-top: 16px; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); text-align: center; }
+.pair-qr svg { display: block; }
+.pair-qr p { margin: 8px 0 0; color: var(--muted); font-size: 12px; font-weight: 700; }
 .manual-pair { width: min(520px, 100%); margin: 0 auto; text-align: left; }
 .manual-pair summary { cursor: pointer; color: var(--brand-strong); font-weight: 700; }
 .join-code { color: var(--brand-strong); font-size: 23px; letter-spacing: .12em; }

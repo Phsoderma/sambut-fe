@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Header } from '../components/Header';
 import { useSession } from '../lib/SessionContext';
 import { staffStateId } from '../lib/stateMap';
@@ -100,6 +101,10 @@ export default function StaffPage() {
             <div><dt>Pasien</dt><dd>Nomor {snapshot.encounter_number}</dd></div>
           </dl>
           <button className="button secondary" onClick={() => window.open(patientUrl, '_blank', 'noopener,noreferrer')}>Buka Terminal Pengguna</button>
+          <div className="pair-qr">
+            <QRCodeSVG value={patientUrl} size={148} level="M" marginSize={2} title="QR pairing terminal pengguna" />
+            <p>Pindai dari tablet pengguna</p>
+          </div>
           <p className="pair-link">Tautan pairing: <a href={patientUrl} target="_blank" rel="noreferrer">{patientUrl}</a></p>
           <button className="button quiet" onClick={leaveSession}>Tinggalkan sesi di perangkat ini</button>
         </aside>
