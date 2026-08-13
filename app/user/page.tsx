@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { CameraPreview } from '../components/CameraPreview';
 import { Header } from '../components/Header';
 import { useSession } from '../lib/SessionContext';
@@ -20,10 +20,21 @@ export default function UserPage() {
     reconnectNow,
     leaveSession,
   } = useSession();
-  const [sessionId, setSessionId] = useState('');
-  const [joinCode, setJoinCode] = useState('');
+  const [sessionId, setSessionId] = useState(() => typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('session') ?? '');
+  const [joinCode, setJoinCode] = useState(() => typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('code') ?? '');
   const [text, setText] = useState('');
   const [inputMode, setInputMode] = useState<InputMode>('QUESTION');
+  const autoJoinAttempted = useRef(false);
+
+  useEffect(() => {
+    if (credentials || autoJoinAttempted.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const pairedSession = params.get('session')?.trim();
+    const pairedCode = params.get('code')?.trim();
+    if (!pairedSession || !pairedCode) return;
+    autoJoinAttempted.current = true;
+    void joinUserSession(pairedSession, pairedCode);
+  }, [credentials, joinUserSession]);
 
   const join = (event: FormEvent) => {
     event.preventDefault();
@@ -37,8 +48,9 @@ export default function UserPage() {
         <main className="focus-page">
           <section className="focus-content compact">
             <p className="eyebrow">Terminal pengguna</p>
-            <h1>Hubungkan ke petugas</h1>
-            <p className="lead">Masukkan ID sesi dan kode sambung yang ditampilkan pada terminal petugas.</p>
+            <h1>Menunggu tautan dari petugas</h1>
+            <p className="lead">Pada alur normal, terminal ini terhubung otomatis melalui tautan atau QR dari petugas.</p>
+            <details className="manual-pair"><summary>Sambungkan secara manual</summary>
             <form className="stack-form" onSubmit={join}>
               <label htmlFor="session-id">ID sesi</label>
               <input id="session-id" value={sessionId} onChange={(event) => setSessionId(event.target.value)} autoComplete="off" required />
@@ -47,6 +59,7 @@ export default function UserPage() {
               {error && <p className="error-box" role="alert">{error}</p>}
               <button className="button primary large" disabled={busy}>Hubungkan</button>
             </form>
+            </details>
           </section>
         </main>
       </div>
@@ -89,7 +102,7 @@ export default function UserPage() {
         {!offline && error && <p className="error-box" role="alert">{error}</p>}
 
         {!offline && snapshot.workflow_state === 'SESSION_START' && (
-          <Focus title="Anda sudah terhubung dengan petugas." description="Silakan tunggu petugas memulai pertanyaan layanan." />
+          <Focus title="Terminal siap untuk pasien berikutnya." description={`Terhubung dengan petugas · Pasien nomor ${snapshot.encounter_number}. Silakan tunggu pertanyaan layanan.`} />
         )}
 
         {!offline && isPurpose && snapshot.recovery_status === 'HUMAN_HELP' && (

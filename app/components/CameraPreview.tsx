@@ -64,14 +64,12 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
     const video = videoRef.current;
     if (!video || video.readyState < 2 || !video.videoWidth) throw new Error('CAMERA_UNAVAILABLE');
     const canvas = document.createElement('canvas');
-    canvas.width = 320;
-    canvas.height = 180;
+    canvas.width = 640;
+    canvas.height = 360;
     const context = canvas.getContext('2d');
     if (!context) throw new Error('CAMERA_UNAVAILABLE');
-    context.translate(canvas.width, 0);
-    context.scale(-1, 1);
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.55);
+    return canvas.toDataURL('image/jpeg', 0.72);
   }, []);
 
   const capture = useCallback(async () => {
@@ -121,12 +119,19 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
     <section className="camera-layout" aria-live="polite">
       <div className="camera-surface">
         <video ref={videoRef} muted playsInline aria-label="Pratinjau kamera langsung" />
+        <div className="camera-guide" aria-hidden="true">
+          <div className="guide-head" />
+          <div className="guide-body" />
+          <div className="guide-hand guide-left" />
+          <div className="guide-hand guide-right" />
+        </div>
         {phase === 'PROCESSING' && <div className="camera-message">Memahami isyarat Anda…</div>}
         {phase === 'CAPTURING' && <div className="camera-status">Merekam jawaban</div>}
       </div>
       <div className="camera-rail">
         <div>
           <p className="eyebrow">Jawaban dengan BISINDO</p>
+          <p className="camera-instruction">Pastikan wajah dan kedua tangan terlihat di area panduan.</p>
           <p className={phase === 'UNCERTAIN' ? 'error-text' : 'guidance'}>{message}</p>
         </div>
         <div className="button-row">

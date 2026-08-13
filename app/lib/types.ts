@@ -17,6 +17,8 @@ export type Role = 'STAFF' | 'USER';
 
 export interface SessionSnapshot {
   session_id: string;
+  encounter_id: string;
+  encounter_number: number;
   version: number;
   workflow_state: WorkflowState;
   resolved_purpose: Purpose | null;

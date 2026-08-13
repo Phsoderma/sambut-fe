@@ -29,6 +29,7 @@ export default function StaffPage() {
     leaveSession,
   } = useSession();
   const [instruction, setInstruction] = useState('Silakan menunggu di Ruang Tunggu Poli Umum.');
+  const [dictationMessage, setDictationMessage] = useState('');
 
   if (!snapshot || !credentials) {
     return (
@@ -53,6 +54,32 @@ export default function StaffPage() {
 
   const offline = connection === 'DISCONNECTED';
   const stateId = staffStateId(snapshot.workflow_state, snapshot.recovery_status, !offline);
+  const patientUrlObject = new URL('/user', window.location.origin);
+  patientUrlObject.searchParams.set('session', credentials.sessionId);
+  patientUrlObject.searchParams.set('code', credentials.joinCode ?? '');
+  const patientUrl = patientUrlObject.toString();
+
+  const startDictation = () => {
+    const speechWindow = window as typeof window & {
+      SpeechRecognition?: new () => { lang: string; interimResults: boolean; start: () => void; onresult: (event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void; onerror: () => void };
+      webkitSpeechRecognition?: new () => { lang: string; interimResults: boolean; start: () => void; onresult: (event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void; onerror: () => void };
+    };
+    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    if (!Recognition) {
+      setDictationMessage('Dikte tidak didukung di peramban ini. Ketik arahan secara manual.');
+      return;
+    }
+    const recognition = new Recognition();
+    recognition.lang = 'id-ID';
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim();
+      if (transcript) setInstruction(transcript);
+      setDictationMessage('Tinjau hasil dikte sebelum mengirim.');
+    };
+    recognition.onerror = () => setDictationMessage('Dikte gagal. Ketik arahan secara manual.');
+    recognition.start();
+  };
 
   const sendInstruction = (event: FormEvent) => {
     event.preventDefault();
@@ -70,7 +97,10 @@ export default function StaffPage() {
             <div><dt>Kode sambung</dt><dd className="join-code">{credentials.joinCode}</dd></div>
             <div><dt>Pengguna</dt><dd>{snapshot.user_connected ? 'Terhubung' : 'Menunggu'}</dd></div>
             <div><dt>Status</dt><dd>{STATE_LABELS[snapshot.workflow_state]}</dd></div>
+            <div><dt>Pasien</dt><dd>Nomor {snapshot.encounter_number}</dd></div>
           </dl>
+          <button className="button secondary" onClick={() => window.open(patientUrl, '_blank', 'noopener,noreferrer')}>Buka Terminal Pengguna</button>
+          <p className="pair-link">Tautan pairing: <a href={patientUrl} target="_blank" rel="noreferrer">{patientUrl}</a></p>
           <button className="button quiet" onClick={leaveSession}>Tinggalkan sesi di perangkat ini</button>
         </aside>
 
@@ -139,6 +169,8 @@ export default function StaffPage() {
                 <form className="stack-form" onSubmit={sendInstruction}>
                   <label htmlFor="next-step">Arahan untuk pengguna</label>
                   <textarea id="next-step" value={instruction} maxLength={500} onChange={(event) => setInstruction(event.target.value)} />
+                  <button className="button secondary" type="button" onClick={startDictation}>Dikte arahan</button>
+                  {dictationMessage && <p className="guidance" role="status">{dictationMessage}</p>}
                   <button className="button primary" disabled={busy || !instruction.trim()}>Kirim arahan</button>
                 </form>
               ) : (
@@ -155,6 +187,7 @@ export default function StaffPage() {
           {snapshot.workflow_state === 'COMPLETE' && (
             <Task title="Pendaftaran selesai" description="Sesi mencapai COMPLETE setelah arahan diterima pengguna.">
               <p className="success-text">Alur layanan selesai tanpa menyimpan video atau data dokumen.</p>
+              <button className="button primary" disabled={busy} onClick={() => submitEvent('NEXT_PATIENT_STARTED')}>Pasien Berikutnya</button>
             </Task>
           )}
         </section>
