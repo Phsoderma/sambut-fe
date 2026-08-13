@@ -157,7 +157,7 @@ export default function SignRehearsalPage() {
     <main className="dev-page">
       <div className="rehearsal-heading">
         <div><p className="eyebrow">Dev-only · hasil tersimpan otomatis</p><h1>Latihan &amp; Uji Isyarat</h1><p className="guidance">Frame tidak disimpan. ID run: <code>{runId}</code></p></div>
-        <div className="rehearsal-progress"><strong>{complete ? '50/50 selesai' : `${selectedClass} ${classProgress(primaryIndex, selectedClass)}`}</strong><span>{Math.min(primaryIndex, 50)}/50 percobaan utama</span></div>
+        <div className="rehearsal-heading-actions">{calibrationUnlocked && <Link className="button secondary" href="/dev/sign-calibration">Kalibrasi</Link>}<div className="rehearsal-progress"><strong>{complete ? '50/50 selesai' : `${selectedClass} ${classProgress(primaryIndex, selectedClass)}`}</strong><span>{Math.min(primaryIndex, 50)}/50 percobaan utama</span></div></div>
       </div>
       {complete ? <section className="completion-card"><h2>Rangkaian utama selesai</h2><p>Semua 50 percobaan utama dan setiap retry telah dicatat. Jangan menambah atau menghapus hasil sebelum analisis forensik.</p>{calibrationUnlocked && <Link className="button primary" href="/dev/sign-calibration">Kalibrasi</Link>}</section> : <div className="rehearsal-grid">
         <div>

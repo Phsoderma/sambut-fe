@@ -142,6 +142,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .rehearsal-progress { min-width: 170px; display: grid; gap: 3px; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); text-align: right; }
 .rehearsal-progress strong { font-size: 18px; color: var(--primary); }
 .rehearsal-progress span { color: var(--muted); font-size: 12px; }
+.rehearsal-heading-actions { display: flex; align-items: center; gap: 10px; }
+.rehearsal-heading-actions > .button { min-height: 44px; text-decoration: none; }
 .rehearsal-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(280px, .75fr); gap: 20px; align-items: start; }
 .rehearsal-camera { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--radius); background: #17211e; }
 .rehearsal-camera video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
@@ -187,6 +189,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .button-row .button { width: 100%; }
   .camera-primary-row { grid-template-columns: 1fr; }
   .rehearsal-heading { align-items: stretch; flex-direction: column; }
+  .rehearsal-heading-actions { align-items: stretch; flex-direction: column; }
   .rehearsal-progress { text-align: left; }
   .rehearsal-controls { grid-template-columns: 1fr; }
   .camera-recovery-row { display: grid; grid-template-columns: 1fr; }
