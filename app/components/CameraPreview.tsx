@@ -21,6 +21,7 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
   const { predictFrames, confirmSign, busy } = useSession();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const deviceIdRef = useRef('');
   const [phase, setPhase] = useState<'PREPARING' | 'READY' | 'CAPTURING' | 'PROCESSING' | 'UNCERTAIN' | 'MATCHED'>('PREPARING');
   const [message, setMessage] = useState('Meminta izin kamera…');
   const [prediction, setPrediction] = useState<SignPrediction | null>(null);
@@ -31,7 +32,11 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
     if (!navigator.mediaDevices?.enumerateDevices) return [];
     const available = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === 'videoinput');
     setDevices(available);
-    setDeviceId((current) => chooseCamera(available, current || sessionStorage.getItem('sambut-camera-device') || ''));
+    setDeviceId((current) => {
+      const selected = chooseCamera(available, current || sessionStorage.getItem('sambut-camera-device') || '');
+      deviceIdRef.current = selected;
+      return selected;
+    });
     return available;
   }, []);
 
@@ -55,7 +60,8 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
     });
   }, []);
 
-  const startCamera = useCallback(async (selectedDeviceId = deviceId) => {
+  const startCamera = useCallback(async (selectedDeviceId?: string) => {
+    const requestedDeviceId = selectedDeviceId ?? deviceIdRef.current;
     stopCamera();
     setPhase('PREPARING');
     setMessage('Meminta izin kamera…');
@@ -64,13 +70,13 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
       let stream: MediaStream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: selectedDeviceId
-            ? selectedVideoConstraints(selectedDeviceId)
+          video: requestedDeviceId
+            ? selectedVideoConstraints(requestedDeviceId)
             : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: 'user' } },
           audio: false,
         });
       } catch (firstError) {
-        if (selectedDeviceId) throw firstError;
+        if (requestedDeviceId) throw firstError;
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       }
       streamRef.current = stream;
@@ -81,7 +87,11 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
       }
       await refreshDevices();
       const selected = stream.getVideoTracks()[0]?.getSettings().deviceId ?? '';
-      if (selected) { setDeviceId(selected); sessionStorage.setItem('sambut-camera-device', selected); }
+      if (selected) {
+        deviceIdRef.current = selected;
+        setDeviceId(selected);
+        sessionStorage.setItem('sambut-camera-device', selected);
+      }
       setPhase('READY');
       setMessage('Pastikan wajah, tangan, dan tubuh bagian atas terlihat.');
     } catch (caught) {
@@ -89,7 +99,7 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
       setPhase('UNCERTAIN');
       setMessage(cameraErrorMessage(caught));
     }
-  }, [deviceId, refreshDevices, stopCamera, waitForVideo]);
+  }, [refreshDevices, stopCamera, waitForVideo]);
 
   useEffect(() => {
     const onDeviceChange = () => void refreshDevices();
@@ -98,6 +108,7 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
     const timer = window.setTimeout(() => void refreshDevices().then((available) => {
       if (cancelled) return;
       const preferred = chooseCamera(available, sessionStorage.getItem('sambut-camera-device') || '');
+      deviceIdRef.current = preferred;
       void startCamera(preferred);
     }), 0);
     return () => {
@@ -185,7 +196,7 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
         <div className="button-row">
           {shouldShowCameraSelector(devices.length) && phase !== 'CAPTURING' && phase !== 'PROCESSING' && (
             <label className="camera-device">Kamera
-              <select value={deviceId} onChange={(event) => { setDeviceId(event.target.value); void startCamera(event.target.value); }}>
+              <select value={deviceId} onChange={(event) => { deviceIdRef.current = event.target.value; setDeviceId(event.target.value); void startCamera(event.target.value); }}>
                 {devices.map((device, index) => <option value={device.deviceId} key={device.deviceId}>{device.label || `Kamera ${index + 1}`}</option>)}
               </select>
             </label>
