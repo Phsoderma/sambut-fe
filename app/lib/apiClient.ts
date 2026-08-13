@@ -2,6 +2,21 @@ import { ApiError, SessionSnapshot, SignPrediction } from './types';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_SAMBUT_API_URL || 'http://localhost:7860';
 
+export type BackendStatus = {
+  reachable: boolean;
+  modelLoaded: boolean;
+  modelVersion: string | null;
+};
+
+export async function getBackendStatus(): Promise<BackendStatus> {
+  try {
+    const health = await request<{ model_loaded: boolean; model_version: string | null }>('/health');
+    return { reachable: true, modelLoaded: health.model_loaded, modelVersion: health.model_version };
+  } catch {
+    return { reachable: false, modelLoaded: false, modelVersion: null };
+  }
+}
+
 function clientEventId(): string {
   return crypto.randomUUID();
 }

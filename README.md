@@ -14,7 +14,9 @@ npm test
 npm run build
 ```
 
-`NEXT_PUBLIC_SAMBUT_API_URL` must point to the FastAPI P7B branch. Staff uses `/staff` to create a session; the user opens `/user` in an independent browser context and enters the session ID and join code.
+`NEXT_PUBLIC_SAMBUT_API_URL` must point to the running FastAPI service. Staff uses `/staff` to create a session and opens or shares the generated auto-pair URL/QR. Manual code entry is recovery-only.
+
+For a second device on the same LAN, replace `127.0.0.1` with the developer laptop's LAN IP in `.env.local`, allow that exact origin in backend CORS, and serve the frontend over HTTPS before using camera access. `localhost` on a tablet refers to the tablet, not the laptop.
 
 The browser keeps role credentials only in tab-scoped `sessionStorage` to support refresh during the demo. Authoritative state always comes from REST/WebSocket snapshots. Closing the tab clears the credentials; local storage and BroadcastChannel are not used for correctness.
 

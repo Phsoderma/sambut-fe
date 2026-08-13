@@ -1,10 +1,11 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Header } from '../components/Header';
 import { useSession } from '../lib/SessionContext';
 import { staffStateId } from '../lib/stateMap';
+import { BackendStatus, getBackendStatus } from '../lib/apiClient';
 
 const STATE_LABELS = {
   SESSION_START: 'Sesi siap',
@@ -31,6 +32,23 @@ export default function StaffPage() {
   } = useSession();
   const [instruction, setInstruction] = useState('Silakan menunggu di Ruang Tunggu Poli Umum.');
   const [dictationMessage, setDictationMessage] = useState('');
+  const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = () => void getBackendStatus().then((status) => active && setBackendStatus(status));
+    refresh();
+    const timer = window.setInterval(refresh, 15_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
+  const readinessText = !backendStatus
+    ? 'Memeriksa layanan...'
+    : !backendStatus.reachable
+      ? 'Backend tidak tersambung'
+      : backendStatus.modelLoaded
+        ? 'Backend tersambung - Pengenalan isyarat siap'
+        : 'Backend tersambung - Pengenalan isyarat belum siap';
 
   if (!snapshot || !credentials) {
     return (
@@ -41,6 +59,7 @@ export default function StaffPage() {
             <p className="eyebrow">Terminal petugas</p>
             <h1>Buat sesi layanan</h1>
             <p className="lead">Kode sesi akan dipakai pengguna untuk terhubung dari perangkat lain.</p>
+            <p className="guidance" role="status">{readinessText}</p>
             {error && <p className="error-box" role="alert">{error}</p>}
             <button className="button primary large" onClick={createStaffSession} disabled={busy}>Buat sesi</button>
           </section>
@@ -93,6 +112,7 @@ export default function StaffPage() {
       <main className="operational-page">
         <aside className="session-panel" aria-label="Informasi sesi">
           <p className="eyebrow">Sesi aktif</p>
+          <p className="guidance" role="status">{readinessText}</p>
           <dl>
             <div><dt>ID sesi</dt><dd>{credentials.sessionId}</dd></div>
             <div><dt>Kode sambung</dt><dd className="join-code">{credentials.joinCode}</dd></div>
