@@ -8,7 +8,7 @@ import { captureSquareJpeg } from '../../lib/cameraFrames';
 import { chooseCamera, selectedVideoConstraints, stopMediaStream } from '../../lib/cameraDevices';
 
 type TargetClass = 'Iya' | 'Tidak' | 'Tolong';
-type Pending = { burst_id: string; proposal_box: number[] | null; diagnostic: { status: string; intent: string; failure_category: string | null }; snapshot: string };
+type Pending = { burst_id: string; proposal_frame_index: number | null; proposal_box: number[] | null; diagnostic: { status: string; intent: string; failure_category: string | null }; snapshot: string };
 const TARGETS: TargetClass[] = ['Iya', 'Tidak', 'Tolong'];
 const REQUIRED = 8;
 const DETECTOR_URL = process.env.NEXT_PUBLIC_DETECTOR_URL ?? 'http://127.0.0.1:7870';
@@ -44,7 +44,7 @@ export default function SignCalibrationPage() {
       for (let index = 0; index < 30; index += 1) { if (!videoRef.current) throw new Error('Kamera belum siap'); frames.push(captureSquareJpeg(videoRef.current, .72)); await new Promise((resolve) => setTimeout(resolve, 80)); }
       const track = streamRef.current?.getVideoTracks()[0]; const settings = track?.getSettings();
       const response = await fetch(`${DETECTOR_URL}/calibration/capture`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ run_id: runId, intended_class: selectedClass, camera_label: track?.label || 'Unknown camera', capture_width: videoRef.current?.videoWidth || settings?.width || 0, capture_height: videoRef.current?.videoHeight || settings?.height || 0, frames, jpeg_quality: .72, detector_imgsz: 320 }) });
-      if (!response.ok) throw new Error(`Capture gagal (${response.status})`); const result = await response.json(); setPending({ ...result, snapshot: frames[15] });
+      if (!response.ok) throw new Error(`Capture gagal (${response.status})`); const result = await response.json(); setPending({ ...result, snapshot: frames[result.proposal_frame_index ?? 15] });
     } catch (error) { setCameraState(error instanceof Error ? error.message : 'Capture gagal'); } finally { setCountdown(null); setBusy(false); }
   };
   const decide = async (accept: boolean) => {
