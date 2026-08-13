@@ -12,6 +12,7 @@ import {
 import {
   confirmPrediction as confirmPredictionRequest,
   createSession,
+  consumeLocalDemoBootstrap,
   getSnapshot,
   joinSession,
   predictFrames as predictFramesRequest,
@@ -78,6 +79,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setError('Terjadi gangguan. Silakan coba lagi.');
     }
   }, []);
+
+  useEffect(() => {
+    if (credentials || typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const nonce = url.searchParams.get('bootstrap');
+    if (!nonce || window.location.pathname !== '/staff') return;
+    url.searchParams.delete('bootstrap');
+    window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+    void consumeLocalDemoBootstrap(nonce).then((value) => {
+      persist(value);
+      setConnection('CONNECTING');
+    }).catch(applyError);
+  }, [applyError, credentials, persist]);
 
   const createStaffSession = useCallback(async () => {
     setBusy(true);

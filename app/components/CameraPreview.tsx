@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from '../lib/SessionContext';
 import { ApiError, SignIntent, SignPrediction } from '../lib/types';
+import { cameraErrorMessage, chooseCamera, selectedVideoConstraints, shouldShowCameraSelector, stopMediaStream } from '../lib/cameraDevices';
 
 interface CameraPreviewProps {
   onCancel: () => void;
@@ -26,8 +27,16 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState('');
 
+  const refreshDevices = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return [];
+    const available = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === 'videoinput');
+    setDevices(available);
+    setDeviceId((current) => chooseCamera(available, current || sessionStorage.getItem('sambut-camera-device') || ''));
+    return available;
+  }, []);
+
   const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
+    stopMediaStream(streamRef.current);
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
   }, []);
@@ -56,7 +65,7 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: selectedDeviceId
-            ? { deviceId: { exact: selectedDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+            ? selectedVideoConstraints(selectedDeviceId)
             : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: 'user' } },
           audio: false,
         });
@@ -70,33 +79,34 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
         await videoRef.current.play();
         await waitForVideo(videoRef.current);
       }
-      const available = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === 'videoinput');
-      setDevices(available);
+      await refreshDevices();
       const selected = stream.getVideoTracks()[0]?.getSettings().deviceId ?? '';
-      if (selected) setDeviceId(selected);
+      if (selected) { setDeviceId(selected); sessionStorage.setItem('sambut-camera-device', selected); }
       setPhase('READY');
       setMessage('Pastikan wajah, tangan, dan tubuh bagian atas terlihat.');
     } catch (caught) {
       stopCamera();
       setPhase('UNCERTAIN');
-      const name = caught instanceof DOMException ? caught.name : 'CameraError';
-      setMessage(name === 'NotAllowedError' || name === 'SecurityError'
-        ? 'Izin kamera ditolak atau konteks tidak aman. Izinkan kamera, atau gunakan jawaban teks.'
-        : name === 'NotReadableError'
-          ? 'Kamera sedang dipakai aplikasi lain atau tidak dapat dibaca. Tutup aplikasi kamera lain lalu coba lagi.'
-          : name === 'NotFoundError'
-            ? 'Perangkat kamera tidak ditemukan. Gunakan jawaban teks atau minta bantuan petugas.'
-            : 'Kamera tidak tersedia. Periksa perangkat atau gunakan jawaban teks.');
+      setMessage(cameraErrorMessage(caught));
     }
-  }, [deviceId, stopCamera, waitForVideo]);
+  }, [deviceId, refreshDevices, stopCamera, waitForVideo]);
 
   useEffect(() => {
-    const timer = window.setTimeout(startCamera, 0);
+    const onDeviceChange = () => void refreshDevices();
+    navigator.mediaDevices?.addEventListener?.('devicechange', onDeviceChange);
+    let cancelled = false;
+    const timer = window.setTimeout(() => void refreshDevices().then((available) => {
+      if (cancelled) return;
+      const preferred = chooseCamera(available, sessionStorage.getItem('sambut-camera-device') || '');
+      void startCamera(preferred);
+    }), 0);
     return () => {
+      cancelled = true;
       window.clearTimeout(timer);
+      navigator.mediaDevices?.removeEventListener?.('devicechange', onDeviceChange);
       stopCamera();
     };
-  }, [startCamera, stopCamera]);
+  }, [refreshDevices, startCamera, stopCamera]);
 
   const captureFrame = useCallback((): string => {
     const video = videoRef.current;
@@ -173,13 +183,14 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
           <p className={phase === 'UNCERTAIN' ? 'error-text' : 'guidance'}>{message}</p>
         </div>
         <div className="button-row">
-          {devices.length > 1 && phase !== 'CAPTURING' && phase !== 'PROCESSING' && (
+          {shouldShowCameraSelector(devices.length) && phase !== 'CAPTURING' && phase !== 'PROCESSING' && (
             <label className="camera-device">Kamera
               <select value={deviceId} onChange={(event) => { setDeviceId(event.target.value); void startCamera(event.target.value); }}>
                 {devices.map((device, index) => <option value={device.deviceId} key={device.deviceId}>{device.label || `Kamera ${index + 1}`}</option>)}
               </select>
             </label>
           )}
+          {phase === 'UNCERTAIN' && <button className="button quiet" type="button" onClick={() => window.open('ms-settings:privacy-webcam')}>Buka pengaturan kamera</button>}
           {phase === 'READY' && <button className="button primary" onClick={capture}>Mulai isyarat</button>}
           {phase === 'MATCHED' && <button className="button primary" onClick={accept} disabled={busy}>Benar, kirim jawaban</button>}
           {(phase === 'UNCERTAIN' || phase === 'MATCHED') && <button className="button secondary" onClick={() => void startCamera()}>Coba lagi</button>}

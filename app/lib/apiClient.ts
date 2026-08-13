@@ -54,6 +54,12 @@ export async function createSession() {
   }>('/api/v1/sessions', { method: 'POST', body: '{}' });
 }
 
+export async function consumeLocalDemoBootstrap(nonce: string) {
+  return request<{ role: 'STAFF'; sessionId: string; token: string; joinCode: string }>(
+    `/api/v1/local-demo/bootstrap/${encodeURIComponent(nonce)}`,
+  );
+}
+
 export async function joinSession(sessionId: string, joinCode: string) {
   return request<{ user_token: string; snapshot: SessionSnapshot }>(
     `/api/v1/sessions/${encodeURIComponent(sessionId)}/join`,
