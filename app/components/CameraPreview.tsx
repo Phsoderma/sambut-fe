@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from '../lib/SessionContext';
 import { ApiError, SignIntent, SignPrediction } from '../lib/types';
 import { cameraErrorMessage, chooseCamera, selectedVideoConstraints, shouldShowCameraSelector, stopMediaStream } from '../lib/cameraDevices';
+import { captureSquareJpeg } from '../lib/cameraFrames';
 
 interface CameraPreviewProps {
   onCancel: () => void;
@@ -121,14 +122,8 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
 
   const captureFrame = useCallback((): string => {
     const video = videoRef.current;
-    if (!video || video.readyState < 2 || !video.videoWidth) throw new Error('CAMERA_UNAVAILABLE');
-    const canvas = document.createElement('canvas');
-    canvas.width = 640;
-    canvas.height = 360;
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('CAMERA_UNAVAILABLE');
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.72);
+    if (!video) throw new Error('CAMERA_UNAVAILABLE');
+    return captureSquareJpeg(video, 0.72);
   }, []);
 
   const capture = useCallback(async () => {
@@ -188,12 +183,13 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
         {phase === 'CAPTURING' && <div className="camera-status">Merekam jawaban</div>}
       </div>
       <div className="camera-rail">
-        <div>
+        <div className="camera-copy">
           <p className="eyebrow">Jawaban dengan BISINDO</p>
           <p className="camera-instruction">Pastikan wajah dan kedua tangan terlihat di area panduan.</p>
           <p className={phase === 'UNCERTAIN' ? 'error-text' : 'guidance'}>{message}</p>
         </div>
-        <div className="button-row">
+        <div className="camera-actions">
+          <div className="camera-primary-row">
           {shouldShowCameraSelector(devices.length) && phase !== 'CAPTURING' && phase !== 'PROCESSING' && (
             <label className="camera-device">Kamera
               <select value={deviceId} onChange={(event) => { deviceIdRef.current = event.target.value; setDeviceId(event.target.value); void startCamera(event.target.value); }}>
@@ -201,13 +197,16 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
               </select>
             </label>
           )}
-          {phase === 'UNCERTAIN' && <button className="button quiet" type="button" onClick={() => window.open('ms-settings:privacy-webcam')}>Buka pengaturan kamera</button>}
           {phase === 'READY' && <button className="button primary" onClick={capture}>Mulai isyarat</button>}
           {phase === 'MATCHED' && <button className="button primary" onClick={accept} disabled={busy}>Benar, kirim jawaban</button>}
           {(phase === 'UNCERTAIN' || phase === 'MATCHED') && <button className="button secondary" onClick={() => void startCamera()}>Coba lagi</button>}
+          </div>
+          <div className="camera-recovery-row">
+          {phase === 'UNCERTAIN' && <button className="button quiet camera-settings" type="button" onClick={() => window.open('ms-settings:privacy-webcam')}>Buka pengaturan kamera</button>}
           <button className="button secondary" onClick={onText}>Ketik jawaban</button>
           <button className="button quiet" onClick={onHelp}>Minta bantuan petugas</button>
           <button className="button quiet" onClick={onCancel}>Kembali</button>
+          </div>
         </div>
       </div>
     </section>
