@@ -21,6 +21,7 @@ const INTENT_LABELS: Record<Exclude<SignIntent, 'SIGN_UNKNOWN'>, string> = {
 export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) {
   const { predictFrames, confirmSign, busy } = useSession();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const deviceIdRef = useRef('');
   const [phase, setPhase] = useState<'PREPARING' | 'READY' | 'CAPTURING' | 'PROCESSING' | 'UNCERTAIN' | 'MATCHED'>('PREPARING');
@@ -28,6 +29,7 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
   const [prediction, setPrediction] = useState<SignPrediction | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState('');
+  const [captureCount, setCaptureCount] = useState(0);
 
   const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return [];
@@ -129,11 +131,13 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
   const capture = useCallback(async () => {
     if (!streamRef.current) return;
     setPhase('CAPTURING');
+    setCaptureCount(0);
     setMessage('Silakan berikan isyarat jawaban.');
     try {
       const frames: string[] = [];
       for (let index = 0; index < 30; index += 1) {
         frames.push(captureFrame());
+        setCaptureCount(index + 1);
         await new Promise((resolve) => setTimeout(resolve, 80));
       }
       stopCamera();
@@ -173,6 +177,7 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
     <section className="camera-layout" aria-live="polite">
       <div className="camera-surface">
         <video ref={videoRef} muted playsInline aria-label="Pratinjau kamera langsung" />
+        <canvas ref={canvasRef} className="camera-overlay-canvas" aria-hidden="true" />
         <div className="camera-guide" aria-hidden="true">
           <div className="guide-head" />
           <div className="guide-body" />
@@ -180,7 +185,12 @@ export function CameraPreview({ onCancel, onText, onHelp }: CameraPreviewProps) 
           <div className="guide-hand guide-right" />
         </div>
         {phase === 'PROCESSING' && <div className="camera-message">Memahami isyarat Anda…</div>}
-        {phase === 'CAPTURING' && <div className="camera-status">Merekam jawaban</div>}
+        {phase === 'CAPTURING' && (
+          <div className="camera-status">
+            <span className="camera-status-dot" />
+            <span>Merekam isyarat ({captureCount}/30)</span>
+          </div>
+        )}
       </div>
       <div className="camera-rail">
         <div className="camera-copy">
